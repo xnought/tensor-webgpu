@@ -46,12 +46,17 @@ function numWorkgroups(totalData, threadsPerWorkgroup) {
  * @param {ArrayLike} d
  * @param {Shape} shape
  * @param {Strides} strides
+ * @param {number} cutoff when to stop printing and just print ... to signify more elements
  * @returns {string}
  */
-function ndarrayToString(d, shape, strides) {
+function ndarrayToString(d, shape, strides, cutoff = Infinity) {
 	let string = "";
 	function _recurse(shapeI, pi) {
 		for (let i = 0; i < shape[shapeI]; i++) {
+			if (i > cutoff) {
+				string += "...";
+				return;
+			}
 			const accumulatedIndex = pi + i * strides[shapeI];
 			if (shapeI === shape.length - 1) {
 				string += `${d[accumulatedIndex]}`;
@@ -97,23 +102,6 @@ export class Tensor {
 	}
 
 	/**
-	 * Random uniform from [0, 1)
-	 * @todo Implement random uniform kernel in GPU only
-	 * @param {GPU} gpu
-	 * @param {Shape} shape
-	 * @param {DType} dtype
-	 * @returns {Tensor}
-	 */
-	static random(gpu, shape, dtype = "f32") {
-		const cpuRandom = new DTypedArray[dtype](length(shape))
-			.fill(0)
-			.map((_) => Math.random());
-		const gpuBuffer = gpu.memAlloc(cpuRandom.byteLength);
-		gpu.memcpyHostToDevice(gpuBuffer, cpuRandom);
-		return new Tensor(gpu, gpuBuffer, shape, dtype);
-	}
-
-	/**
 	 * Fill a Tensor all the a given fillValue
 	 * @param {GPU} gpu
 	 * @param {Shape} shape
@@ -151,7 +139,43 @@ export class Tensor {
 		return new Tensor(gpu, gpuBuffer, shape, dtype);
 	}
 
-	async print() {
+	/**
+	 * Tensor given data
+	 * @param {GPU} gpu
+	 * @param {TypedArray} data
+	 * @param {Shape} shape
+	 * @param {number} fillValue
+	 * @param {DType} dtype
+	 * @returns {Tensor}
+	 */
+	static tensor(gpu, data, shape, dtype = "f32") {
+		const cpuBuffer = new DTypedArray[dtype](data);
+		const gpuBuffer = gpu.memAlloc(cpuBuffer.byteLength);
+		gpu.memcpyHostToDevice(gpuBuffer, cpuBuffer);
+		return new Tensor(gpu, gpuBuffer, shape, dtype);
+	}
+
+	/**
+	 * Random uniform from [0, 1)
+	 * @todo Implement random uniform kernel in GPU only
+	 * @param {GPU} gpu
+	 * @param {Shape} shape
+	 * @param {DType} dtype
+	 * @returns {Tensor}
+	 */
+	static random(gpu, shape, dtype = "f32") {
+		const data = new DTypedArray[dtype](length(shape))
+			.fill(0)
+			.map((_) => Math.random());
+		return Tensor.tensor(gpu, data, shape, dtype);
+	}
+
+	get T() {
+		return this.transpose();
+	}
+	transpose() {}
+
+	async print(minimized = true) {
 		this.assertNotFreed();
 
 		const cpuBuffer = await this.gpu.mapGPUToCPU(
@@ -159,14 +183,15 @@ export class Tensor {
 			this.DTypedArray
 		);
 		let output = ``;
+		output += `dtype='${this.dtype}', `;
+		output += `shape=[${this.shape}], `;
+		output += `strides=[${this.strides}],\n`;
 		output += `gpuBuffer=\n${ndarrayToString(
 			cpuBuffer,
 			this.shape,
-			this.strides
-		)}\n\n`;
-		output += `dtype='${this.dtype}', `;
-		output += `shape=[${this.shape}], `;
-		output += `strides=[${this.strides}], `;
+			this.strides,
+			minimized ? 8 : Infinity
+		)}\n`;
 		console.log(output);
 	}
 
@@ -187,7 +212,9 @@ export class Tensor {
 
 export async function dev() {
 	const gpu = await GPU.init();
-	const a = Tensor.fill(gpu, 1, [2, 2, 2], "u32");
+	console.time("TEST");
+	const a = Tensor.tensor(gpu, [1, 2, 3], [3, 1], "f32");
+	console.timeEnd("TEST");
 	await a.print();
 	a.free();
 }
