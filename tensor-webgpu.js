@@ -73,29 +73,6 @@ function ndarrayToString(d, shape, strides) {
 	return string;
 }
 
-/**
- * Formats string multi-dimensional array from flat data d given shape and strides
- * @param {ArrayLike} d
- * @param {Shape} shape
- * @param {Strides} strides
- * @returns {string}
- */
-function matrixToString(d, shape, strides) {
-	let string = "";
-	string += "[";
-	for (let i = 0; i < shape[0]; i++) {
-		string += "[";
-		for (let j = 0; j < shape[1]; j++) {
-			string += `${d[i * strides[0] + j * strides[1]].toFixed(6)}`;
-			if (j < shape[1] - 1) string += ", ";
-		}
-		string += "]";
-		if (i < shape[0] - 1) string += "\n";
-	}
-	string += "]";
-	return string;
-}
-
 export class Tensor {
 	/**
 	 * @param {GPU} gpu
