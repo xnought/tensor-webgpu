@@ -115,15 +115,16 @@ export class Tensor {
 			this.gpuBuffer,
 			this.DTypedArray
 		);
-		console.log(
-			`dtype='${this.dtype}', shape=[${
-				this.shape
-			}]\ngpuBuffer=\n${ndarrayToString(
-				cpuBuffer,
-				this.shape,
-				this.strides
-			)}`
-		);
+		let output = ``;
+		output += `gpuBuffer=\n${ndarrayToString(
+			cpuBuffer,
+			this.shape,
+			this.strides
+		)}\n\n`;
+		output += `dtype='${this.dtype}', `;
+		output += `shape=[${this.shape}], `;
+		output += `strides=[${this.strides}], `;
+		console.log(output);
 	}
 
 	free() {
