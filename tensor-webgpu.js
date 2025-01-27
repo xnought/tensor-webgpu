@@ -2,6 +2,7 @@ import { GPU, assert } from "./webgpu-compute";
 
 /** @typedef {"f32" | "f64" | "u32"} DType*/
 /** @typedef {number[]} Shape */
+/** @typedef {number[]} Strides */
 /** @typedef {Float32ArrayConstructor | Float64ArrayConstructor | Uint32ArrayConstructor} TypedArray */
 
 /** @type {Record<DType, TypedArray>}*/
@@ -24,15 +25,75 @@ function length(shape) {
 /**
  * Computes how to enumerate the ndarray
  * @param {Shape} shape
+ * @returns {Strides}
  */
 function strides(shape) {
 	let strides = new Array(shape.length);
 	strides[strides.length - 1] = 1;
 
 	for (let i = shape.length - 1; i > 0; i--) {
-		console.log(shape[i]);
+		strides[i - 1] = strides[i] * shape[i];
 	}
 	return strides;
+}
+
+/**
+ * Formats string multi-dimensional array from flat data d given shape and strides
+ * @param {ArrayLike} d
+ * @param {Shape} shape
+ * @param {Strides} strides
+ * @returns {string}
+ */
+function ndarrayToString(d, shape, strides) {
+	let string = "";
+	function _recurse(shapeI, pi) {
+		for (let i = 0; i < shape[shapeI]; i++) {
+			const accumulatedIndex = pi + i * strides[shapeI];
+			if (shapeI === shape.length - 1) {
+				string += `${d[accumulatedIndex].toFixed(3)}`;
+				if (i < shape[shapeI] - 1) string += ", ";
+			} else {
+				if (i > 0) for (let j = 0; j < shapeI + 1; j++) string += " ";
+				string += "[";
+				_recurse(shapeI + 1, accumulatedIndex);
+				string += "]";
+				if (i < shape[shapeI] - 1) {
+					string += ",";
+					for (let j = 0; j < shape.length - shapeI - 1; j++)
+						string += "\n";
+				}
+			}
+		}
+	}
+
+	string += "[";
+	_recurse(0, 0);
+	string += "]";
+
+	return string;
+}
+
+/**
+ * Formats string multi-dimensional array from flat data d given shape and strides
+ * @param {ArrayLike} d
+ * @param {Shape} shape
+ * @param {Strides} strides
+ * @returns {string}
+ */
+function matrixToString(d, shape, strides) {
+	let string = "";
+	string += "[";
+	for (let i = 0; i < shape[0]; i++) {
+		string += "[";
+		for (let j = 0; j < shape[1]; j++) {
+			string += `${d[i * strides[0] + j * strides[1]].toFixed(6)}`;
+			if (j < shape[1] - 1) string += ", ";
+		}
+		string += "]";
+		if (i < shape[0] - 1) string += "\n";
+	}
+	string += "]";
+	return string;
 }
 
 export class Tensor {
@@ -48,7 +109,6 @@ export class Tensor {
 		this.shape = shape;
 		this.strides = strides(shape);
 		this.dtype = dtype;
-		this.freed = false;
 	}
 
 	get DTypedArray() {
@@ -78,24 +138,35 @@ export class Tensor {
 			this.gpuBuffer,
 			this.DTypedArray
 		);
-		console.log(cpuBuffer, this.dtype);
+		console.log(
+			`dtype='${this.dtype}', shape=[${
+				this.shape
+			}]\ngpuBuffer=\n${ndarrayToString(
+				cpuBuffer,
+				this.shape,
+				this.strides
+			)}`
+		);
 	}
 
 	free() {
 		this.assertNotFreed(); // don't free twice
 
 		this.gpu.free(this.gpuBuffer);
-		this.freed = true;
+		this.gpuBuffer = undefined;
 	}
 
 	assertNotFreed() {
-		assert(!this.freed, "This GPU Buffer has already been freed.");
+		assert(
+			this.gpuBuffer !== undefined,
+			"This GPU Buffer has already been freed."
+		);
 	}
 }
 
 export async function dev() {
 	const gpu = await GPU.init();
-	const a = Tensor.random(gpu, [4, 1], "f32");
+	const a = Tensor.random(gpu, [2, 2, 2, 2], "f32");
 	await a.print();
 	a.free();
 }
