@@ -4,7 +4,7 @@ Tensor Library that uses https://github.com/xnought/webgpu-compute for WebGPU co
 
 **Roadmap**
 
-- [ ] Random uniform, zeros, and ones array generation
+- [x] Random uniform, zeros, and ones array generation
 - [ ] Unary Ops (Power, ...)
 - [ ] Shape Ops (Reshape, perumute, transpose, expand)
 - [ ] Binary Ops (Matmul, add, ...)

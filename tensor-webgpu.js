@@ -3,7 +3,7 @@ import { GPU, assert } from "./webgpu-compute";
 /** @typedef {"f32" | "f64" | "u32"} DType*/
 /** @typedef {number[]} Shape */
 /** @typedef {number[]} Strides */
-/** @typedef {Float32ArrayConstructor | Float64ArrayConstructor | Uint32ArrayConstructor} TypedArray */
+/** @typedef {Float32ArrayConstructor | Float64ArrayConstructor  | Uint32ArrayConstructor} TypedArray */
 
 /** @type {Record<DType, TypedArray>}*/
 const DTypedArray = {
@@ -37,6 +37,10 @@ function strides(shape) {
 	return strides;
 }
 
+function numWorkgroups(totalData, threadsPerWorkgroup) {
+	return Math.ceil(totalData / threadsPerWorkgroup);
+}
+
 /**
  * Formats string multi-dimensional array from flat data d given shape and strides
  * @param {ArrayLike} d
@@ -50,7 +54,7 @@ function ndarrayToString(d, shape, strides) {
 		for (let i = 0; i < shape[shapeI]; i++) {
 			const accumulatedIndex = pi + i * strides[shapeI];
 			if (shapeI === shape.length - 1) {
-				string += `${d[accumulatedIndex].toFixed(3)}`;
+				string += `${d[accumulatedIndex]}`;
 				if (i < shape[shapeI] - 1) string += ", ";
 			} else {
 				if (i > 0) for (let j = 0; j < shapeI + 1; j++) string += " ";
@@ -94,6 +98,7 @@ export class Tensor {
 
 	/**
 	 * Random uniform from [0, 1)
+	 * @todo Implement random uniform kernel in GPU only
 	 * @param {GPU} gpu
 	 * @param {Shape} shape
 	 * @param {DType} dtype
@@ -105,6 +110,44 @@ export class Tensor {
 			.map((_) => Math.random());
 		const gpuBuffer = gpu.memAlloc(cpuRandom.byteLength);
 		gpu.memcpyHostToDevice(gpuBuffer, cpuRandom);
+		return new Tensor(gpu, gpuBuffer, shape, dtype);
+	}
+
+	/**
+	 * Fill a Tensor all the a given fillValue
+	 * @param {GPU} gpu
+	 * @param {Shape} shape
+	 * @param {number} fillValue
+	 * @param {DType} dtype
+	 * @returns {Tensor}
+	 */
+	static fill(gpu, fillValue, shape, dtype = "f32") {
+		const LENGTH = length(shape);
+
+		// allocate empty GPU buffer
+		const gpuBuffer = gpu.memAlloc(
+			LENGTH * DTypedArray[dtype].BYTES_PER_ELEMENT
+		);
+
+		// TODO: decide if I should define all kernels in global variables preloaded
+		// define fill gpu kernel
+		const THREADS_PER_WORKGROUP = 256;
+		const fill = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> data: array<${dtype}>;
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					data[gid.x] = ${dtype}(${fillValue});
+				}
+			}`
+			)
+			.getFunction("main");
+
+		// Call the gpu kernel
+		fill([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], gpuBuffer);
+
 		return new Tensor(gpu, gpuBuffer, shape, dtype);
 	}
 
@@ -144,7 +187,7 @@ export class Tensor {
 
 export async function dev() {
 	const gpu = await GPU.init();
-	const a = Tensor.random(gpu, [2, 2, 2, 2], "f32");
+	const a = Tensor.fill(gpu, 0, [4, 1]);
 	await a.print();
 	a.free();
 }
