@@ -2,6 +2,8 @@
 
 Tensor Library that uses https://github.com/xnought/webgpu-compute for WebGPU computation.
 
+Nearly all computations done on the GPU.
+
 **Roadmap**
 
 - [x] Random uniform, zeros, and ones array generation
