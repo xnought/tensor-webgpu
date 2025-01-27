@@ -25,7 +25,7 @@ The array generations methods require a gpu and the imported Tensor js module
 
 ```js
 import { Tensor } from "./tensor-webgpu";
-import { GPU } from "./wbgpu-compute";
+import { GPU } from "./webgpu-compute";
 
 const gpu = await GPU.init(); // will be used in Tensor functions
 ```
