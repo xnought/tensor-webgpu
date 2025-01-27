@@ -187,7 +187,7 @@ export class Tensor {
 
 export async function dev() {
 	const gpu = await GPU.init();
-	const a = Tensor.fill(gpu, 0, [4, 1]);
+	const a = Tensor.fill(gpu, 1, [2, 2, 2], "u32");
 	await a.print();
 	a.free();
 }
