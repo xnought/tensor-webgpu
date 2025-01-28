@@ -43,7 +43,7 @@ Initialized GPU Tensor given array, dtype and shape.
 In this case I want to send the vector `[1,2,3]` to the gpu with shape `[3,1]`.
 
 ```js
-const a = await Tensor.tensor(gpu, [1,2,3], [3,1], "f32");
+const a = await Tensor.tensor([1,2,3], [3,1], "f32");
 await a.print();
 ```
 `console outputs ↓`
@@ -63,7 +63,7 @@ Random value between `[0, 1)`.
 In this case random values of a tensor shaped of `[4,1]` of 32 bit floating points.
 
 ```js
-const a = await Tensor.random(gpu, [4, 1], "f32");
+const a = await Tensor.random([4, 1], "f32");
 await a.print();
 ```
 
@@ -83,7 +83,7 @@ gpuBuffer=
 Fill an entire tensor with a single scalar value. In this case a `[2,2,2]` shaped tensor of unsigned integers.
 
 ```js
-const a = await Tensor.fill(gpu, 1, [2, 2, 2], "u32");
+const a = await Tensor.fill(1, [2, 2, 2], "u32");
 await a.print();
 ```
 
@@ -116,7 +116,7 @@ const arr = a.cpuBuffer();
 Sums over the given axis/dimension. 
 
 ```js
-const a = await Tensor.tensor(gpu, [0,1,2,3,4,5,6,7], [2,2,2], "f32");
+const a = await Tensor.tensor([0,1,2,3,4,5,6,7], [2,2,2], "f32");
 console.log("a");
 await a.print();
 
@@ -152,7 +152,7 @@ gpuBuffer=
 Raises every element in the Tensor to the given power. 
 
 ```js
-const a = await Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
+const a = await Tensor.tensor([1, 2, -3], [3, 1], "f32");
 console.log("a");
 await a.print();
 
@@ -186,7 +186,7 @@ Transposes the first and last dimension.
 Or alias `.T` does the same thing
 
 ```js
-const a = await Tensor.tensor(gpu, [1, 2, 3], [3, 1]);
+const a = await Tensor.tensor([1, 2, 3], [3, 1]);
 console.log("a");
 await a.print();
 
@@ -229,17 +229,17 @@ const aSum = await a.sum(0);
 
 Is perfectly fine, but the a.sum() function allocates the shape of the output and returns it to you. 
 
-Instead you could explicitly use the functional call `Tensor.<op name>(gpu, destination,...args)`;
+Instead you could explicitly use the functional call `Tensor.<op name>(destination,...args)`;
 
 ```js
 const aSum = await Tensor.empty([1,1]); // destination/result empty allocation
-await Tensor.sum(gpu, aSum, a, 0); // compute sum down a and store in aSum
+await Tensor.sum(aSum, a, 0); // compute sum down a and store in aSum
 ```
 
 This function API also allows for in place operations. Like squaring
 
 ```js
-await Tensor.pow(gpu, a, a, 2); // compute a^2 then override a with result 
+await Tensor.pow(a, a, 2); // compute a^2 then override a with result 
 ```
 
 
