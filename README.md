@@ -102,14 +102,14 @@ Transposes the first and last dimension.
 Or alias `.T` does the same thing
 
 ```js
-const a = Tensor.tensor([1,2,3], [3, 1]);
-console.log("a")
+const a = await Tensor.tensor(gpu, [1, 2, 3], [3, 1]);
+console.log("a");
 await a.print();
 
-console.log("a.transpose()")
+console.log("a.transpose()");
 await a.transpose().print();
 
-console.log("a.T")
+console.log("a.T");
 await a.T.print();
 ```
 

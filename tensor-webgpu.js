@@ -474,7 +474,7 @@ export class Tensor {
 
 export async function dev() {
 	const gpu = await GPU.init();
-	await fillExample(gpu);
+	await transposeExample(gpu);
 }
 
 async function sumExample(gpu) {
@@ -489,6 +489,17 @@ async function sumExample(gpu) {
 
 	console.log("Sum across");
 	await (await a.sum(-1)).print();
+}
+async function transposeExample(gpu) {
+	const a = await Tensor.tensor(gpu, [1, 2, 3], [3, 1]);
+	console.log("a");
+	await a.print();
+
+	console.log("a.transpose()");
+	await a.transpose().print();
+
+	console.log("a.T");
+	await a.T.print();
 }
 async function powExample(gpu) {
 	const a = await Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
