@@ -25,18 +25,6 @@ wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/ten
 
 ## Tensor Operations
 
-> [!NOTE]
-> Every tensor operation has a functional definition where you allocate the output (or choose to do the op in-place)
->
-> Example: `const a = await Tensor.tensor([1,2,3], [3,1]);`
->
-> `const aSum = await a.sum(0);`
->
-> OR FUNCTIONAL
->
-> First alloc output `const aSum = await Tensor.empty([1,1]);`, then call `await Tensor.sum(aSum, a, 0);`, then result in `aSum`.
->
-> You might need the functional defintion if you are keeping a few tensors alive and don't want to reallocate them anytime you call a class function. So only care about this if performance is a big issue.
 
 ### sum(dim)
 
@@ -143,6 +131,30 @@ a.T
 dtype='1,1', shape=[1,3], strides=[1,1],
 gpuBuffer=
 [[1, 2, 3]]
+```
+
+## Functional Tensor Operations
+
+Every tensor operation (above in [tensor-operations](#tensor-operations)) has a functional definition where you allocate the output (or choose to do the op in-place)
+
+```js
+const a = await Tensor.tensor([1,2,3], [3,1]);
+const aSum = await a.sum(0);
+```
+
+Is perfectly fine, but the a.sum() function allocates the shape of the output and returns it to you. 
+
+Instead you could explicitly use the functional call `Tensor.<op name>(gpu, destination,...args)`;
+
+```js
+const aSum = await Tensor.empty([1,1]); // destination/result empty allocation
+await Tensor.sum(gpu, aSum, a, 0); // compute sum down a and store in aSum
+```
+
+This function API also allows for in place operations. Like squaring
+
+```js
+await Tensor.pow(gpu, a, a, 2); // compute a^2 then override a with result 
 ```
 
 
