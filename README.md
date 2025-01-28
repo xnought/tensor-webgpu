@@ -7,8 +7,8 @@ Nearly all computations done on the GPU.
 **Roadmap**
 
 - [x] Random uniform, zeros, and ones array generation
-- [ ] pow
-- [ ] sum
+- [x] pow
+- [x] sum
 - [ ] add
 - [ ] sub
 - [ ] mult
@@ -32,12 +32,12 @@ Operations that take in one tensor and return one tensor.
 Sums over the given axis/dimension. 
 
 ```js
-const a = Tensor.tensor(gpu, [0,1,2,3,4,5,6,7], [2,2,2], "f32");
+const a = await Tensor.tensor(gpu, [0,1,2,3,4,5,6,7], [2,2,2], "f32");
 console.log("a");
 await a.print();
 
 console.log("Sum across")
-await a.sum(-1).print();
+await (await a.sum(-1)).print();
 ```
 
 `console outputs ↓`
@@ -68,12 +68,12 @@ gpuBuffer=
 Raises every element in the Tensor to the given power. 
 
 ```js
-const a = Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
+const a = await Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
 console.log("a");
 await a.print();
 
 console.log("a^5");
-await a.pow(5).print();
+await (await a.pow(5)).print();
 ```
 
 `console outputs ↓`
@@ -153,7 +153,7 @@ Initialized GPU Tensor given array, dtype and shape.
 In this case I want to send the vector `[1,2,3]` to the gpu with shape `[3,1]`.
 
 ```js
-const a = Tensor.tensor(gpu, [1,2,3], [3,1], "f32");
+const a = await Tensor.tensor(gpu, [1,2,3], [3,1], "f32");
 await a.print();
 ```
 `console outputs ↓`
@@ -173,7 +173,7 @@ Random value between `[0, 1)`.
 In this case random values of a tensor shaped of `[4,1]` of 32 bit floating points.
 
 ```js
-const a = Tensor.random(gpu, [4, 1], "f32");
+const a = await Tensor.random(gpu, [4, 1], "f32");
 await a.print();
 ```
 
@@ -193,7 +193,7 @@ gpuBuffer=
 Fill an entire tensor with a single scalar value. In this case a `[2,2,2]` shaped tensor of unsigned integers.
 
 ```js
-const a = Tensor.fill(gpu, 1, [2, 2, 2], "u32");
+const a = await Tensor.fill(gpu, 1, [2, 2, 2], "u32");
 await a.print();
 ```
 

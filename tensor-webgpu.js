@@ -205,7 +205,7 @@ export class Tensor {
 	 * @param {Shape} shape
 	 * @param {number} fillValue
 	 * @param {DType} dtype
-	 * @returns {Tensor}
+	 * @returns {Promise<Tensor>}
 	 */
 	static fill(gpu, fillValue, shape, dtype = "f32") {
 		const LENGTH = length(shape);
@@ -243,12 +243,12 @@ export class Tensor {
 	 * @param {TypedArray} data
 	 * @param {Shape} shape
 	 * @param {DType} dtype
-	 * @returns {Tensor}
+	 * @returns {Promise<Tensor>}
 	 */
-	static tensor(gpu, data, shape, dtype = "f32") {
+	static async tensor(gpu, data, shape, dtype = "f32") {
 		const cpuBuffer = new DTypedArray[dtype](data);
-		const gpuBuffer = gpu.memAlloc(cpuBuffer.byteLength);
-		gpu.memcpyHostToDevice(gpuBuffer, cpuBuffer);
+		const gpuBuffer = await gpu.memAlloc(cpuBuffer.byteLength);
+		await gpu.memcpyHostToDevice(gpuBuffer, cpuBuffer);
 		return new Tensor(gpu, gpuBuffer, shape, strides(shape), dtype);
 	}
 
@@ -258,10 +258,10 @@ export class Tensor {
 	 * @param {TypedArray} data
 	 * @param {Shape} shape
 	 * @param {DType} dtype
-	 * @returns {Tensor}
+	 * @returns {Promise<Tensor>}
 	 */
-	static empty(gpu, shape, dtype = "f32") {
-		const gpuBuffer = gpu.memAlloc(
+	static async empty(gpu, shape, dtype = "f32") {
+		const gpuBuffer = await gpu.memAlloc(
 			length(shape) * DTypedArray[dtype].BYTES_PER_ELEMENT
 		);
 		return new Tensor(gpu, gpuBuffer, shape, strides(shape), dtype);
@@ -273,9 +273,9 @@ export class Tensor {
 	 * @param {GPU} gpu
 	 * @param {Shape} shape
 	 * @param {DType} dtype
-	 * @returns {Tensor}
+	 * @returns {Promise<Tensor>}
 	 */
-	static random(gpu, shape, dtype = "f32") {
+	static async random(gpu, shape, dtype = "f32") {
 		const data = new DTypedArray[dtype](length(shape))
 			.fill(0)
 			.map((_) => Math.random());
@@ -320,7 +320,7 @@ export class Tensor {
 	 * @param {Tensor} src what values are raised to the power
 	 * @param {number} power
 	 */
-	static pow(gpu, dst, src, power) {
+	static async pow(gpu, dst, src, power) {
 		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
 		assert(
 			arrIsSame(dst.shape, src.shape),
@@ -346,7 +346,7 @@ export class Tensor {
 			.getFunction("main");
 
 		// Call the gpu kernel
-		pow(
+		await pow(
 			[numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)],
 			dst.gpuBuffer,
 			src.gpuBuffer
@@ -354,9 +354,9 @@ export class Tensor {
 
 		return dst;
 	}
-	pow(power) {
-		const dst = Tensor.empty(this.gpu, this.shape, this.dtype);
-		Tensor.pow(this.gpu, dst, this, power);
+	async pow(power) {
+		const dst = await Tensor.empty(this.gpu, this.shape, this.dtype);
+		await Tensor.pow(this.gpu, dst, this, power);
 		return dst;
 	}
 
@@ -367,7 +367,7 @@ export class Tensor {
 	 * @param {Tensor} src what values are raised to the power
 	 * @param {number|null} dim defaults to null.
 	 */
-	static sumLastDimension(gpu, dst, src) {
+	static async sumLastDimension(gpu, dst, src) {
 		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
 		assert(
 			dst.shape.at(-1) === 1,
@@ -400,7 +400,7 @@ export class Tensor {
 			.getFunction("main");
 
 		// Call the gpu kernel
-		sum(
+		await sum(
 			[numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)],
 			dst.gpuBuffer,
 			src.gpuBuffer
@@ -416,20 +416,24 @@ export class Tensor {
 	 * @param {Tensor} src what values are raised to the power
 	 * @param {number|null} dim
 	 */
-	static sum(gpu, dst, src, dim = -1) {
+	static async sum(gpu, dst, src, dim = -1) {
 		// Shove the dimension we want to the end
 		const idxs = new Uint8Array(src.shape.length).fill(0).map((_, i) => i);
 		dim = negIndexWrap(src.shape.length, dim);
 		const end = src.shape.length - 1;
 		swapItems(idxs, dim, end); // said shoving
 
-		Tensor.sumLastDimension(gpu, dst.transpose(idxs), src.transpose(idxs));
+		await Tensor.sumLastDimension(
+			gpu,
+			dst.transpose(idxs),
+			src.transpose(idxs)
+		);
 	}
-	sum(dim = -1) {
+	async sum(dim = -1) {
 		const dstShape = copyTypedArray(this.shape);
 		dstShape[negIndexWrap(dstShape.length, dim)] = 1; // reducing down this dimension
-		const dst = Tensor.empty(this.gpu, dstShape, this.dtype);
-		Tensor.sum(this.gpu, dst, this, dim);
+		const dst = await Tensor.empty(this.gpu, dstShape, this.dtype);
+		await Tensor.sum(this.gpu, dst, this, dim);
 		return dst;
 	}
 
@@ -470,11 +474,35 @@ export class Tensor {
 
 export async function dev() {
 	const gpu = await GPU.init();
+	await fillExample(gpu);
+}
 
-	const a = Tensor.tensor(gpu, [0, 1, 2, 3, 4, 5, 6, 7], [2, 2, 2], "f32");
+async function sumExample(gpu) {
+	const a = await Tensor.tensor(
+		gpu,
+		[0, 1, 2, 3, 4, 5, 6, 7],
+		[2, 2, 2],
+		"f32"
+	);
 	console.log("a");
 	await a.print();
 
 	console.log("Sum across");
-	await a.sum(-1).print();
+	await (await a.sum(-1)).print();
+}
+async function powExample(gpu) {
+	const a = await Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
+	console.log("a");
+	await a.print();
+
+	console.log("a^5");
+	await (await a.pow(5)).print();
+}
+async function randomExample(gpu) {
+	const a = await Tensor.random(gpu, [4, 1], "f32");
+	await a.print();
+}
+async function fillExample(gpu) {
+	const a = await Tensor.fill(gpu, 1, [2, 2, 2], "u32");
+	await a.print();
 }
