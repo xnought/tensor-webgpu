@@ -26,8 +26,10 @@ wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/ten
 ## Tensor Operations
 
 > [!NOTE]
-> Every tensor operation has a function definition if you prefer
-> For example, a.sum() can be called with Tensor.sum(outA, a) where you have to manually allocated outA
+> Every tensor operation has a functional definition where you allocate the output
+>>
+> `const aOut = Tensor.empty(/*here you provide the out shape*/)`
+> With functional: `Tensor.sum(aOut, a);`
 
 ### sum(dim)
 
