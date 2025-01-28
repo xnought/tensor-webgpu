@@ -146,7 +146,7 @@ import { GPU } from "./webgpu-compute";
 const gpu = await GPU.init(); // will be used in Tensor functions
 ```
 
-### Tensor.tensor()
+### Tensor.tensor
 
 Initialized GPU Tensor given array, dtype and shape.
 
