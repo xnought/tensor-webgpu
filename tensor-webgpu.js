@@ -41,6 +41,20 @@ function numWorkgroups(totalData, threadsPerWorkgroup) {
 	return Math.ceil(totalData / threadsPerWorkgroup);
 }
 
+function swapItems(arr, i, j) {
+	const temp = arr[i];
+	arr[i] = j;
+	arr[j] = temp;
+}
+
+function copyArr(arr) {
+	let cpy = new Array(arr.length);
+	for (let i = 0; i < arr.length; i++) {
+		cpy[i] = arr[i];
+	}
+	return cpy;
+}
+
 /**
  * Formats string multi-dimensional array from flat data d given shape and strides
  * @param {ArrayLike} d
@@ -191,8 +205,15 @@ export class Tensor {
 		return this.transpose();
 	}
 	transpose() {
-		const swappedShape = this.shape;
-		const swappedStrides = this.strides;
+		if (this.shape === 1) return this; // 1d arr is already transposed
+
+		const swappedShape = copyArr(this.shape);
+		const swappedStrides = copyArr(this.strides);
+		const firstDim = 0;
+		const lastDim = this.shape.length - 1;
+		swapItems(swappedShape, firstDim, lastDim);
+		swapItems(swappedStrides, firstDim, lastDim);
+
 		return new Tensor(
 			this.gpu,
 			this.gpuBuffer,

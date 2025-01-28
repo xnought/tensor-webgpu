@@ -44,7 +44,26 @@ console.log("a.T")
 await a.T.print();
 ```
 
-TODO: swap multiple dimensions like numpy or permute like pytorch.
+`console outputs ↓`
+
+```js
+a
+tensor-webgpu.js:243 dtype='f32', shape=[3,1], strides=[1,1],
+gpuBuffer=
+[[1],
+ [2],
+ [3]]
+
+a.transpose()
+dtype='1,1', shape=[1,3], strides=[3,1],
+gpuBuffer=
+[[1, 2, 3]]
+
+a.T
+dtype='1,1', shape=[1,3], strides=[3,1],
+gpuBuffer=
+[[1, 2, 3]]
+```
 
 
 ## Data Generation
@@ -68,6 +87,7 @@ In this case I want to send the vector `[1,2,3]` to the gpu with shape `[3,1]`.
 const a = Tensor.tensor(gpu, [1,2,3], [3,1], "f32");
 await a.print();
 ```
+`console outputs ↓`
 
 ```js
 dtype='f32', shape=[3,1], strides=[1,1],
@@ -88,6 +108,8 @@ const a = Tensor.random(gpu, [4, 1], "f32");
 await a.print();
 ```
 
+`console outputs ↓`
+
 ```js
 dtype='f32', shape=[4,1], strides=[1,1],
 gpuBuffer=
@@ -105,6 +127,8 @@ Fill an entire tensor with a single scalar value. In this case a `[2,2,2]` shape
 const a = Tensor.fill(gpu, 1, [2, 2, 2], "u32");
 await a.print();
 ```
+
+`console outputs ↓`
 
 ```js
 dtype='u32', shape=[2,2,2], strides=[4,2,1], 
