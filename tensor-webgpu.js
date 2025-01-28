@@ -51,21 +51,33 @@ function numWorkgroups(totalData, threadsPerWorkgroup) {
  */
 function ndarrayToString(d, shape, strides, cutoff = Infinity) {
 	let string = "";
+
 	function _recurse(shapeI, pi) {
 		for (let i = 0; i < shape[shapeI]; i++) {
+			// don't print too many elements!
 			if (i > cutoff) {
 				string += "...";
 				return;
 			}
+
+			// accumulate the i*strides[0] + j*strides[1] ... and so on
 			const accumulatedIndex = pi + i * strides[shapeI];
+
+			// If we have a number (last dimension), print it!
 			if (shapeI === shape.length - 1) {
 				string += `${d[accumulatedIndex]}`;
 				if (i < shape[shapeI] - 1) string += ", ";
-			} else {
+			}
+			// otherwise, recursively print and format
+			else {
+				// essentially tabbing so the numbers are aligned
 				if (i > 0) for (let j = 0; j < shapeI + 1; j++) string += " ";
+
 				string += "[";
 				_recurse(shapeI + 1, accumulatedIndex);
 				string += "]";
+
+				// padding with newlines depending on how deep
 				if (i < shape[shapeI] - 1) {
 					string += ",";
 					for (let j = 0; j < shape.length - shapeI - 1; j++)
@@ -170,10 +182,25 @@ export class Tensor {
 		return Tensor.tensor(gpu, data, shape, dtype);
 	}
 
+	/**
+	 * Transposes the first and last dimensions of the tensor
+	 * @todo implement permuting over different dimensions
+	 * @returns {Tensor}
+	 */
 	get T() {
 		return this.transpose();
 	}
-	transpose() {}
+	transpose() {
+		const swappedShape = this.shape;
+		const swappedStrides = this.strides;
+		return new Tensor(
+			this.gpu,
+			this.gpuBuffer,
+			swappedShape,
+			swappedStrides,
+			this.dtype
+		);
+	}
 
 	async print(minimized = true) {
 		this.assertNotFreed();
@@ -212,9 +239,14 @@ export class Tensor {
 
 export async function dev() {
 	const gpu = await GPU.init();
-	console.time("TEST");
-	const a = Tensor.tensor(gpu, [1, 2, 3], [3, 1], "f32");
-	console.timeEnd("TEST");
+
+	const a = Tensor.tensor(gpu, [1, 2, 3], [3, 1]);
+	console.log("a");
 	await a.print();
-	a.free();
+
+	console.log("a.transpose()");
+	await a.transpose().print();
+
+	console.log("a.T");
+	await a.T.print();
 }

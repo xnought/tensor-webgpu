@@ -21,9 +21,35 @@ wget https://raw.githubusercontent.com/xnought/webgpu-compute/refs/heads/main/we
 wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/tensor-webgpu.js
 ```
 
-## Usage
+## Unary Operations
 
-The array generations methods require a gpu and the imported Tensor js module
+Operations that take in one tensor and return one tensor.
+
+### transpose()
+
+
+Transposes the first and last dimension.
+
+Or alias `.T` does the same thing
+
+```js
+const a = Tensor.tensor([1,2,3], [3, 1]);
+console.log("a")
+await a.print();
+
+console.log("a.transpose()")
+await a.transpose().print();
+
+console.log("a.T")
+await a.T.print();
+```
+
+TODO: swap multiple dimensions like numpy or permute like pytorch.
+
+
+## Data Generation
+
+The generation methods require a gpu and the imported Tensor js module
 
 ```js
 import { Tensor } from "./tensor-webgpu";
