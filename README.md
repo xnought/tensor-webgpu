@@ -86,14 +86,7 @@ gpuBuffer=
  [2],
  [-3]]
 
-Tensor.pow(gpu, aSquared, a, 5)
-dtype='f32', shape=[3,1], strides=[1,1],
-gpuBuffer=
-[[1],
- [32],
- [242.99996948242188]]
-
-a.pow(5)
+a^5
 dtype='f32', shape=[3,1], strides=[1,1],
 gpuBuffer=
 [[1],
