@@ -25,7 +25,9 @@ wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/ten
 
 ## Tensor Operations
 
-Operations that take in one tensor and return one tensor.
+> [!NOTE]
+> Every tensor operation has a function definition if you prefer
+> For example, a.sum() can be called with Tensor.sum(outA, a) where you have to manually allocated outA
 
 ### sum(dim)
 
