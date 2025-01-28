@@ -55,12 +55,12 @@ gpuBuffer=
  [3]]
 
 a.transpose()
-dtype='1,1', shape=[1,3], strides=[3,1],
+dtype='1,1', shape=[1,3], strides=[1,1],
 gpuBuffer=
 [[1, 2, 3]]
 
 a.T
-dtype='1,1', shape=[1,3], strides=[3,1],
+dtype='1,1', shape=[1,3], strides=[1,1],
 gpuBuffer=
 [[1, 2, 3]]
 ```

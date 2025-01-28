@@ -115,11 +115,11 @@ export class Tensor {
 	 * @param {Shape} shape
 	 * @param {DType} dtype
 	 */
-	constructor(gpu, gpuBuffer, shape, dtype) {
+	constructor(gpu, gpuBuffer, shape, strides, dtype) {
 		this.gpu = gpu;
 		this.gpuBuffer = gpuBuffer;
 		this.shape = shape;
-		this.strides = strides(shape);
+		this.strides = strides;
 		this.dtype = dtype;
 	}
 
@@ -162,7 +162,7 @@ export class Tensor {
 		// Call the gpu kernel
 		fill([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], gpuBuffer);
 
-		return new Tensor(gpu, gpuBuffer, shape, dtype);
+		return new Tensor(gpu, gpuBuffer, shape, strides(shape), dtype);
 	}
 
 	/**
@@ -178,7 +178,7 @@ export class Tensor {
 		const cpuBuffer = new DTypedArray[dtype](data);
 		const gpuBuffer = gpu.memAlloc(cpuBuffer.byteLength);
 		gpu.memcpyHostToDevice(gpuBuffer, cpuBuffer);
-		return new Tensor(gpu, gpuBuffer, shape, dtype);
+		return new Tensor(gpu, gpuBuffer, shape, strides(shape), dtype);
 	}
 
 	/**
@@ -209,6 +209,7 @@ export class Tensor {
 
 		const swappedShape = copyArr(this.shape);
 		const swappedStrides = copyArr(this.strides);
+		console.log(swappedShape, swappedStrides);
 		const firstDim = 0;
 		const lastDim = this.shape.length - 1;
 		swapItems(swappedShape, firstDim, lastDim);
