@@ -46,6 +46,7 @@ function numWorkgroups(totalData, threadsPerWorkgroup) {
 
 /**
  * @param {TypedArray} arr
+ * @return {TypedArray}
  */
 function copyTypedArray(arr) {
 	const cpy = new arr.constructor(arr.length);
@@ -156,6 +157,27 @@ function ndarrayToString(d, shape, strides, cutoff = Infinity) {
 function negIndexWrap(l, dim) {
 	if (dim < 0) return (l += dim);
 	return dim;
+}
+
+/**
+ * Computes the index of the second to last index
+ * For example if you can iterate (i,j,k), this collapses eveyrthing but the last index
+ * So in the normal case you get i*stride[0] + j*stride[1]
+ * This function further computes i and j from the global index
+ *
+ * @param {Shape} shape
+ * @param {Strides} strides
+ * @returns {string}
+ */
+function wgslBaseIdx(shape, strides, globalX = "gid.x") {
+	let wgsl = "";
+	for (let i = 0; i < shape.length - 1; i++) {
+		const div = i === 0 ? `${globalX}` : `(${globalX}/${shape[i - 1]})`;
+		const idx = `(${div} % ${shape[i]})`;
+		wgsl += `(${strides[i]}*${idx})`;
+		if (i < shape.length - 2) wgsl += " + ";
+	}
+	return wgsl;
 }
 
 export class Tensor {
@@ -365,11 +387,13 @@ export class Tensor {
 			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
 			fn main(@builtin(global_invocation_id) gid : vec3u) {
 				if(gid.x < ${LENGTH}) {
+					let baseSrcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x")};
+					let baseDstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x")};
 					var summed = ${dtype}(0);
 					for(var i: u32 = 0; i < ${src.shape.at(-1)}; i++) {
-						summed += src[${src.shape.at(-1)}*gid.x + 1*i];
+						summed += src[baseSrcIdx + i*${src.strides.at(-1)}];
 					}
-					dst[gid.x] = summed;
+					dst[baseDstIdx] = summed;
 				}
 			}`
 			)
@@ -400,6 +424,13 @@ export class Tensor {
 		swapItems(idxs, dim, end); // said shoving
 
 		Tensor.sumLastDimension(gpu, dst.transpose(idxs), src.transpose(idxs));
+	}
+	sum(dim = -1) {
+		const dstShape = copyTypedArray(this.shape);
+		dstShape[negIndexWrap(dstShape.length, dim)] = 1; // reducing down this dimension
+		const dst = Tensor.empty(this.gpu, dstShape, this.dtype);
+		Tensor.sum(this.gpu, dst, this, dim);
+		return dst;
 	}
 
 	async print(minimized = true) {
@@ -440,30 +471,10 @@ export class Tensor {
 export async function dev() {
 	const gpu = await GPU.init();
 
-	const a = Tensor.tensor(gpu, [1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const a = Tensor.tensor(gpu, [0, 1, 2, 3, 4, 5, 6, 7], [2, 2, 2], "f32");
+	console.log("a");
+	await a.print();
 
-	// {
-	// 	const dim = 0;
-	// 	console.log(dim);
-	// 	const aSum = Tensor.empty(gpu, [1, 2, 2]);
-	// 	Tensor.sum(gpu, aSum, a, dim);
-	// 	await aSum.print();
-	// }
-
-	{
-		const aT = a.transpose([0, 2, 1]);
-		// const aT = Tensor.tensor(gpu, [1, 3, 2, 4, 5, 7, 6, 8], [2, 2, 2]);
-		await aT.print();
-		const aSum = Tensor.empty(gpu, [2, 2, 1]);
-		Tensor.sumLastDimension(gpu, aSum, aT);
-		await aSum.print();
-	}
-
-	// {
-	// 	const dim = 2;
-	// 	console.log(dim);
-	// 	const aSum = Tensor.empty(gpu, [2, 2, 1]);
-	// 	Tensor.sum(gpu, aSum, a, dim);
-	// 	await aSum.print();
-	// }
+	console.log("Sum across");
+	await a.sum(-1).print();
 }

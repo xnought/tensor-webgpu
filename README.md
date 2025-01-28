@@ -29,35 +29,51 @@ Operations that take in one tensor and return one tensor.
 
 ### sum(dim)
 
-Sums over the given axis/dimension.
+Sums over the given axis/dimension. 
 
 ```js
-const a = Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
+const a = Tensor.tensor(gpu, [0,1,2,3,4,5,6,7], [2,2,2], "f32");
 console.log("a");
 await a.print();
 
-console.log("Tensor.sum(gpu, aSum, a, 0)")
-Tensor.sum(gpu, aSum, a, 0);
-await aSum.print();
+console.log("Sum across")
+await a.sum(-1).print();
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[0, 1],
+  [2, 3]],
+
+ [[4, 5],
+  [6, 7]]]
+
+Sum across
+type='f32', shape=[2,2,1], strides=[2,1,1],
+gpuBuffer=
+[[[1],
+  [5]],
+
+ [[9],
+  [13]]]
+
 ```
 
 ### pow(number)
 
-Raises every element in the Tensor to the given power.
+Raises every element in the Tensor to the given power. 
 
 ```js
 const a = Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
 console.log("a");
 await a.print();
 
-const aSquared = Tensor.empty(gpu, a.shape, a.dtype);
-console.log("Tensor.pow(gpu, aSquared, a, 5)");
-Tensor.pow(gpu, aSquared, a, 5);
-await aSquared.print();
-
-console.log("a.pow(5)");
-const chained = await a.pow(5).print();
-await chained.print();
+console.log("a^5");
+await a.pow(5).print();
 ```
 
 `console outputs ↓`
