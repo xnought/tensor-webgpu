@@ -48,7 +48,7 @@ await a.T.print();
 
 ```js
 a
-tensor-webgpu.js:243 dtype='f32', shape=[3,1], strides=[1,1],
+dtype='f32', shape=[3,1], strides=[1,1],
 gpuBuffer=
 [[1],
  [2],
