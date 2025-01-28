@@ -7,10 +7,12 @@ Nearly all computations done on the GPU.
 **Roadmap**
 
 - [x] Random uniform, zeros, and ones array generation
-- [ ] Shape Ops (Reshape, perumute, transpose, expand)
-- [ ] Unary Ops (Power, ...)
-- [ ] Binary Ops (Matmul, add, ...)
-- [ ] ...
+- [ ] pow
+- [ ] sum
+- [ ] add
+- [ ] sub
+- [ ] mult
+- [ ] dot
 
 ## Install
 
@@ -24,6 +26,64 @@ wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/ten
 ## Unary Operations
 
 Operations that take in one tensor and return one tensor.
+
+### sum(dim)
+
+Sums over the given axis/dimension.
+
+```js
+const a = Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
+console.log("a");
+await a.print();
+
+console.log("Tensor.sum(gpu, aSum, a, 0)")
+Tensor.sum(gpu, aSum, a, 0);
+await aSum.print();
+```
+
+### pow(number)
+
+Raises every element in the Tensor to the given power.
+
+```js
+const a = Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
+console.log("a");
+await a.print();
+
+const aSquared = Tensor.empty(gpu, a.shape, a.dtype);
+console.log("Tensor.pow(gpu, aSquared, a, 5)");
+Tensor.pow(gpu, aSquared, a, 5);
+await aSquared.print();
+
+console.log("a.pow(5)");
+const chained = await a.pow(5).print();
+await chained.print();
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[3,1], strides=[1,1],
+gpuBuffer=
+[[1],
+ [2],
+ [-3]]
+
+Tensor.pow(gpu, aSquared, a, 5)
+dtype='f32', shape=[3,1], strides=[1,1],
+gpuBuffer=
+[[1],
+ [32],
+ [242.99996948242188]]
+
+a.pow(5)
+dtype='f32', shape=[3,1], strides=[1,1],
+gpuBuffer=
+[[1],
+ [32],
+ [242.99996948242188]]
+```
 
 ### transpose()
 

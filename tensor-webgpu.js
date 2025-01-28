@@ -1,6 +1,6 @@
 import { GPU, assert } from "./webgpu-compute";
 
-/** @typedef {"f32" | "f64" | "u32"} DType*/
+/** @typedef {"f32" | "u32" | "i32"} DType*/
 /** @typedef {number[]} Shape */
 /** @typedef {number[]} Strides */
 /** @typedef {Float32ArrayConstructor | Float64ArrayConstructor  | Uint32ArrayConstructor} TypedArray */
@@ -8,9 +8,12 @@ import { GPU, assert } from "./webgpu-compute";
 /** @type {Record<DType, TypedArray>}*/
 const DTypedArray = {
 	f32: Float32Array,
-	f64: Float64Array,
 	u32: Uint32Array,
+	i32: Int32Array,
 };
+
+const ShapeTypedArray = Uint32Array;
+const StridesTypedArray = Uint32Array;
 
 /**
  * Gives total length (multiply shape across)
@@ -41,18 +44,54 @@ function numWorkgroups(totalData, threadsPerWorkgroup) {
 	return Math.ceil(totalData / threadsPerWorkgroup);
 }
 
+/**
+ * @param {TypedArray} arr
+ */
+function copyTypedArray(arr) {
+	const cpy = new arr.constructor(arr.length);
+	for (let i = 0; i < arr.length; i++) {
+		cpy[i] = arr[i];
+	}
+	return cpy;
+}
+
+/**
+ * @param {TypedArray} arr
+ */
+function reduceLengthBy1(arr) {
+	assert(arr.length > 0);
+	const cpy = new arr.constructor(arr.length - 1);
+	for (let i = 0; i < cpy.length; i++) {
+		cpy[i] = arr[i];
+	}
+	return cpy;
+}
+
+/**
+ * for example if swaps = [1, 0, 2], arr = [5, 6, 7]
+ * after the swaps we get arr = [6, 5, 7]
+ * Note the indices that weren't changed don't swap
+ *
+ * @param {number[]} arr
+ * @param  {number[]} swaps
+ */
+function multiSwapItems(arr, swaps) {
+	const ogArr = copyTypedArray(arr);
+	for (let i = 0; i < swaps.length; i++) {
+		const j = swaps[i];
+		arr[i] = ogArr[j];
+	}
+}
 function swapItems(arr, i, j) {
 	const temp = arr[i];
 	arr[i] = j;
 	arr[j] = temp;
 }
 
-function copyArr(arr) {
-	let cpy = new Array(arr.length);
-	for (let i = 0; i < arr.length; i++) {
-		cpy[i] = arr[i];
-	}
-	return cpy;
+function arrIsSame(a, b) {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+	return true;
 }
 
 /**
@@ -108,6 +147,17 @@ function ndarrayToString(d, shape, strides, cutoff = Infinity) {
 	return string;
 }
 
+/**
+ * For example dim=-1 refers to last element and dim = 0 refers to first and everything in between
+ * @param {number} l  array length
+ * @param {*} dim dimension index (negative refers to end)
+ * @returns
+ */
+function negIndexWrap(l, dim) {
+	if (dim < 0) return (l += dim);
+	return dim;
+}
+
 export class Tensor {
 	/**
 	 * @param {GPU} gpu
@@ -118,8 +168,8 @@ export class Tensor {
 	constructor(gpu, gpuBuffer, shape, strides, dtype) {
 		this.gpu = gpu;
 		this.gpuBuffer = gpuBuffer;
-		this.shape = shape;
-		this.strides = strides;
+		this.shape = ShapeTypedArray.from(shape);
+		this.strides = StridesTypedArray.from(strides);
 		this.dtype = dtype;
 	}
 
@@ -170,7 +220,6 @@ export class Tensor {
 	 * @param {GPU} gpu
 	 * @param {TypedArray} data
 	 * @param {Shape} shape
-	 * @param {number} fillValue
 	 * @param {DType} dtype
 	 * @returns {Tensor}
 	 */
@@ -178,6 +227,21 @@ export class Tensor {
 		const cpuBuffer = new DTypedArray[dtype](data);
 		const gpuBuffer = gpu.memAlloc(cpuBuffer.byteLength);
 		gpu.memcpyHostToDevice(gpuBuffer, cpuBuffer);
+		return new Tensor(gpu, gpuBuffer, shape, strides(shape), dtype);
+	}
+
+	/**
+	 * Allocates gpu memory based on shape with no values
+	 * @param {GPU} gpu
+	 * @param {TypedArray} data
+	 * @param {Shape} shape
+	 * @param {DType} dtype
+	 * @returns {Tensor}
+	 */
+	static empty(gpu, shape, dtype = "f32") {
+		const gpuBuffer = gpu.memAlloc(
+			length(shape) * DTypedArray[dtype].BYTES_PER_ELEMENT
+		);
 		return new Tensor(gpu, gpuBuffer, shape, strides(shape), dtype);
 	}
 
@@ -204,16 +268,18 @@ export class Tensor {
 	get T() {
 		return this.transpose();
 	}
-	transpose() {
+	transpose(swaps = undefined) {
 		if (this.shape === 1) return this; // 1d arr is already transposed
 
-		const swappedShape = copyArr(this.shape);
-		const swappedStrides = copyArr(this.strides);
-		console.log(swappedShape, swappedStrides);
-		const firstDim = 0;
-		const lastDim = this.shape.length - 1;
-		swapItems(swappedShape, firstDim, lastDim);
-		swapItems(swappedStrides, firstDim, lastDim);
+		if (swaps === undefined) {
+			swaps = [this.shape.length - 1, 0];
+		}
+
+		// copy metadata and swap them for transpose
+		const swappedShape = copyTypedArray(this.shape);
+		const swappedStrides = copyTypedArray(this.strides);
+		multiSwapItems(swappedShape, swaps);
+		multiSwapItems(swappedStrides, swaps);
 
 		return new Tensor(
 			this.gpu,
@@ -222,6 +288,118 @@ export class Tensor {
 			swappedStrides,
 			this.dtype
 		);
+	}
+
+	/**
+	 * each element element raised to the power
+	 * @todo decide if there is a better way than mapping all elements with pow (just iter slice?)
+	 * @param {GPU} gpu
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} src what values are raised to the power
+	 * @param {number} power
+	 */
+	static pow(gpu, dst, src, power) {
+		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
+		assert(
+			arrIsSame(dst.shape, src.shape),
+			"dst and src shapes must be the same"
+		);
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+		const pow = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read_write> src: array<${dtype}>;
+
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					dst[gid.x] = ${dtype}(pow(f32(src[gid.x]), f32(${power})));
+				}
+			}`
+			)
+			.getFunction("main");
+
+		// Call the gpu kernel
+		pow(
+			[numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)],
+			dst.gpuBuffer,
+			src.gpuBuffer
+		);
+
+		return dst;
+	}
+	pow(power) {
+		const dst = Tensor.empty(this.gpu, this.shape, this.dtype);
+		Tensor.pow(this.gpu, dst, this, power);
+		return dst;
+	}
+
+	/**
+	 * Sum over across the last dimension
+	 * @param {GPU} gpu
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} src what values are raised to the power
+	 * @param {number|null} dim defaults to null.
+	 */
+	static sumLastDimension(gpu, dst, src) {
+		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
+		assert(
+			dst.shape.at(-1) === 1,
+			"dimension we sum over should be 1 in dst"
+		);
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+
+		const sum = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read_write> src: array<${dtype}>;
+
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					var summed = ${dtype}(0);
+					for(var i: u32 = 0; i < ${src.shape.at(-1)}; i++) {
+						summed += src[${src.shape.at(-1)}*gid.x + 1*i];
+					}
+					dst[gid.x] = summed;
+				}
+			}`
+			)
+			.getFunction("main");
+
+		// Call the gpu kernel
+		sum(
+			[numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)],
+			dst.gpuBuffer,
+			src.gpuBuffer
+		);
+
+		return dst;
+	}
+
+	/**
+	 * Sum over across the last dimension
+	 * @param {GPU} gpu
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} src what values are raised to the power
+	 * @param {number|null} dim
+	 */
+	static sum(gpu, dst, src, dim = -1) {
+		// Shove the dimension we want to the end
+		const idxs = new Uint8Array(src.shape.length).fill(0).map((_, i) => i);
+		dim = negIndexWrap(src.shape.length, dim);
+		const end = src.shape.length - 1;
+		swapItems(idxs, dim, end); // said shoving
+
+		Tensor.sumLastDimension(gpu, dst.transpose(idxs), src.transpose(idxs));
 	}
 
 	async print(minimized = true) {
@@ -262,13 +440,30 @@ export class Tensor {
 export async function dev() {
 	const gpu = await GPU.init();
 
-	const a = Tensor.tensor(gpu, [1, 2, 3], [3, 1]);
-	console.log("a");
-	await a.print();
+	const a = Tensor.tensor(gpu, [1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
 
-	console.log("a.transpose()");
-	await a.transpose().print();
+	// {
+	// 	const dim = 0;
+	// 	console.log(dim);
+	// 	const aSum = Tensor.empty(gpu, [1, 2, 2]);
+	// 	Tensor.sum(gpu, aSum, a, dim);
+	// 	await aSum.print();
+	// }
 
-	console.log("a.T");
-	await a.T.print();
+	{
+		const aT = a.transpose([0, 2, 1]);
+		// const aT = Tensor.tensor(gpu, [1, 3, 2, 4, 5, 7, 6, 8], [2, 2, 2]);
+		await aT.print();
+		const aSum = Tensor.empty(gpu, [2, 2, 1]);
+		Tensor.sumLastDimension(gpu, aSum, aT);
+		await aSum.print();
+	}
+
+	// {
+	// 	const dim = 2;
+	// 	console.log(dim);
+	// 	const aSum = Tensor.empty(gpu, [2, 2, 1]);
+	// 	Tensor.sum(gpu, aSum, a, dim);
+	// 	await aSum.print();
+	// }
 }
