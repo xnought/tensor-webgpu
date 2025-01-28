@@ -23,7 +23,7 @@ wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/web
 wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/tensor-webgpu.js
 ```
 
-## Unary Operations
+## Tensor Operations
 
 Operations that take in one tensor and return one tensor.
 
