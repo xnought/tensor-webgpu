@@ -26,10 +26,17 @@ wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/ten
 ## Tensor Operations
 
 > [!NOTE]
-> Every tensor operation has a functional definition where you allocate the output
->>
-> `const aOut = Tensor.empty(/*here you provide the out shape*/)`
-> With functional: `Tensor.sum(aOut, a);`
+> Every tensor operation has a functional definition where you allocate the output (or choose to do the op in-place)
+>
+> Example: `const a = await Tensor.tensor([1,2,3], [3,1]);`
+>
+> `const aSum = await a.sum(0);`
+>
+> OR FUNCTIONAL
+>
+> First alloc output `const aSum = await Tensor.empty([1,1]);`, then call `await Tensor.sum(aSum, a, 0);`, then result in `aSum`.
+>
+> You might need the functional defintion if you are keeping a few tensors alive and don't want to reallocate them anytime you call a class function. So only care about this if performance is a big issue.
 
 ### sum(dim)
 
