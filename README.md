@@ -110,6 +110,50 @@ const arr = a.cpuBuffer();
 
 ## Tensor Operations
 
+### pow(other)
+
+Raises tensor to the power of all entries elementwise in other.
+
+```js
+const a = await Tensor.tensor([1, 2, -3], [3, 1], "f32");
+const b = await Tensor.fill(2, a.shape);
+const c = await a.pow(b);
+
+console.log("a");
+await a.print();
+
+console.log("b");
+await b.print();
+
+console.log("c=a^b");
+await c.print();
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[3,1], strides=[1,1],
+gpuBuffer=
+[[1],
+ [2],
+ [-3]]
+
+b
+dtype='f32', shape=[3,1], strides=[1,1],
+gpuBuffer=
+[[2],
+ [2],
+ [2]]
+
+c=a^b
+dtype='f32', shape=[3,1], strides=[1,1],
+gpuBuffer=
+[[1],
+ [4],
+ [9]]
+```
+
 ### mul(other)
 
 Multiplies two tensors.
@@ -294,39 +338,6 @@ gpuBuffer=
  [[9],
   [13]]]
 
-```
-
-### pow(number)
-
-NOTE: This function is a bit buggy right now.
-
-Raises every element in the Tensor to the given power. 
-
-```js
-const a = await Tensor.tensor([1, 2, -3], [3, 1], "f32");
-console.log("a");
-await a.print();
-
-console.log("a^5");
-await (await a.pow(5)).print();
-```
-
-`console outputs ↓`
-
-```js
-a
-dtype='f32', shape=[3,1], strides=[1,1],
-gpuBuffer=
-[[1],
- [2],
- [-3]]
-
-a^5
-dtype='f32', shape=[3,1], strides=[1,1],
-gpuBuffer=
-[[1],
- [32],
- [242.99996948242188]]
 ```
 
 ### transpose()

@@ -187,7 +187,7 @@ function wgslBaseIdx(
 		reverseI--
 	) {
 		const idx = `(${divCast}(${globalX}/${accShape})%${shape[reverseI]})`;
-		accShape *= shape.at(reverseI - 1); // may or may not bite me in the ass
+		accShape *= shape[reverseI]; // may or may not bite me in the ass (it did. fixed!)
 		const stride = strides[reverseI];
 		wgsl += `(${stride}*${idx})`;
 		if (reverseI > 0) wgsl += "+";
@@ -328,53 +328,6 @@ export class Tensor {
 			swappedStrides,
 			this.dtype
 		);
-	}
-
-	/**
-	 * each element element raised to the power
-	 * @todo decide if there is a better way than mapping all elements with pow (just iter slice?)
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} src what values are raised to the power
-	 * @param {number} power
-	 */
-	static async pow(dst, src, power) {
-		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
-		assert(
-			arrIsSame(dst.shape, src.shape),
-			"dst and src shapes must be the same"
-		);
-
-		const LENGTH = length(dst.shape);
-		const THREADS_PER_WORKGROUP = 256;
-		const dtype = dst.dtype;
-		const pow = gpu
-			.SourceModule(
-				/*wgsl*/ `
-			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
-
-			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
-			fn main(@builtin(global_invocation_id) gid : vec3u) {
-				if(gid.x < ${LENGTH}) {
-					dst[gid.x] = ${dtype}(pow(f32(src[gid.x]), f32(${power})));
-				}
-			}`
-			)
-			.getFunction("main");
-
-		// Call the gpu kernel
-		await pow(
-			[numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)],
-			dst.gpuBuffer,
-			src.gpuBuffer
-		);
-
-		return dst;
-	}
-	async pow(power) {
-		const dst = await Tensor.empty(this.shape, this.dtype);
-		await Tensor.pow(dst, this, power);
-		return dst;
 	}
 
 	/**
@@ -555,6 +508,24 @@ export class Tensor {
 		return this._elementWiseBinaryOp(other, Tensor.mul);
 	}
 
+	/**
+	 * raise to the power elementwise two tensors
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a^b
+	 * @param {Tensor} srcB b in a^b
+	 */
+	static async pow(dst, srcA, srcB) {
+		await Tensor._elementWiseBinaryOp(
+			dst,
+			srcA,
+			srcB,
+			/*wgsl*/ `${dst.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])))`
+		);
+	}
+	async pow(other) {
+		return this._elementWiseBinaryOp(other, Tensor.pow);
+	}
+
 	async print(minimized = true) {
 		this.assertNotFreed();
 
@@ -593,15 +564,6 @@ export class Tensor {
 			"This GPU Buffer has already been freed."
 		);
 	}
-}
-
-export async function dev() {
-	Tensor.setDevice(await GPU.init());
-	await mulExample();
-	// await subExample();
-	// await addExample();
-	// await sumExample();
-	// await inverseIndexing();
 }
 
 async function mulExample() {
@@ -670,11 +632,17 @@ async function transposeExample() {
 }
 async function powExample() {
 	const a = await Tensor.tensor([1, 2, -3], [3, 1], "f32");
+	const b = await Tensor.fill(2, a.shape);
+	const c = await a.pow(b);
+
 	console.log("a");
 	await a.print();
 
-	console.log("a^5");
-	await (await a.pow(5)).print();
+	console.log("b");
+	await b.print();
+
+	console.log("c=a^b");
+	await c.print();
 }
 async function randomExample() {
 	const a = await Tensor.random([4, 1], "f32");
@@ -692,7 +660,7 @@ async function inverseIndexing() {
 	await c.print();
 	for (let i = 0; i < 4; i++) {
 		const idx = [
-			Math.floor(i / c.shape[0]) % c.shape[0],
+			Math.floor(i / c.shape[1]) % c.shape[0],
 			Math.floor(i) % c.shape[1],
 		];
 		const wgslIdx = wgslBaseIdx(
@@ -707,18 +675,17 @@ async function inverseIndexing() {
 		console.log(idx[0] * c.strides[0] + idx[1] * c.strides[1]);
 		console.log(a);
 	}
+}
 
-	for (let i = 0; i < 8; i++) {
+async function inverseIndexing31() {
+	const c = await Tensor.fill(1, [3, 2], "f32");
+	c.print();
+
+	for (let i = 0; i < 6; i++) {
 		const idx = [
-			Math.floor(i / c.strides[0]) % c.shape[0],
-			Math.floor(i / c.strides[1]) % c.shape[1],
-			Math.floor(i / c.strides[2]) % c.shape[2],
+			Math.floor(i / c.shape[1]) % c.shape[0],
+			Math.floor(i) % c.shape[1],
 		];
-		console.log(
-			idx[0] * c.strides[0] +
-				idx[1] * c.strides[1] +
-				idx[2] * c.strides[2]
-		);
 		const wgslIdx = wgslBaseIdx(
 			c.shape,
 			c.strides,
@@ -727,6 +694,19 @@ async function inverseIndexing() {
 			"Math.floor"
 		);
 		const a = eval(wgslIdx);
-		console.log(a);
+
+		console.log(idx[0] * c.strides[0] + idx[1] * c.strides[1], a);
+		// console.log(idx);
 	}
+}
+
+export async function dev() {
+	Tensor.setDevice(await GPU.init());
+	await powExample();
+	// await mulExample();
+	// await subExample();
+	// await addExample();
+	// await sumExample();
+	// await inverseIndexing();
+	// await inverseIndexing31();
 }
