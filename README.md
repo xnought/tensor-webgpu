@@ -9,9 +9,9 @@ Nearly all computations done on the GPU.
 - [x] Random uniform, zeros, and ones array generation
 - [x] pow
 - [x] sum
-- [ ] add
-- [ ] sub
-- [ ] mult
+- [x] add
+- [x] sub
+- [x] mult
 - [ ] dot
 
 ## Getting Started
@@ -109,6 +109,106 @@ const arr = a.cpuBuffer();
 ```
 
 ## Tensor Operations
+
+### mul(other)
+
+Multiplies two tensors.
+
+```js
+const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+const b = await Tensor.fill(-1, a.shape);
+const c = await a.mul(b);
+
+console.log("a");
+await a.print();
+
+console.log("b");
+await b.print();
+
+console.log("c = a*b");
+await c.print();
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[0, 1],
+  [2, 3]],
+
+ [[4, 5],
+  [6, 7]]]
+
+b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[-1, -1],
+  [-1, -1]],
+
+ [[-1, -1],
+  [-1, -1]]]
+
+c = a*b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[0, -1],
+  [-2, -3]],
+
+ [[-4, -5],
+  [-6, -7]]]
+```
+
+### sub(other)
+
+Subtracts two tensors.
+
+```js
+const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+const b = await Tensor.fill(1, a.shape);
+const c = await a.sub(b);
+
+console.log("a");
+await a.print();
+
+console.log("b");
+await b.print();
+
+console.log("c = a-b");
+await c.print();
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[0, 1],
+  [2, 3]],
+
+ [[4, 5],
+  [6, 7]]]
+
+gpu.js:614 b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[1, 1],
+  [1, 1]],
+
+ [[1, 1],
+  [1, 1]]]
+
+c = a-b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[-1, 0],
+  [1, 2]],
+
+ [[3, 4],
+  [5, 6]]]
+```
 
 ### add(other) 
 

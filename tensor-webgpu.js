@@ -455,7 +455,7 @@ export class Tensor {
 	 * @param {Tensor} srcB b in a+b
 	 * @param {string} op wgsl op
 	 */
-	static async _elementWiseOp(dst, srcA, srcB, op) {
+	static async _elementWiseBinaryOp(dst, srcA, srcB, op) {
 		assert(
 			arrIsSame(srcA.shape, srcB.shape),
 			"srcA and srcB must have the same shape"
@@ -495,6 +495,11 @@ export class Tensor {
 			srcB.gpuBuffer
 		);
 	}
+	async _elementWiseBinaryOp(other, BinaryOpStaticMethod) {
+		const dst = await Tensor.empty(other.shape, other.dtype);
+		await BinaryOpStaticMethod(dst, this, other);
+		return dst;
+	}
 
 	/**
 	 * Add together elementwise two tensors
@@ -503,7 +508,7 @@ export class Tensor {
 	 * @param {Tensor} srcB b in a+b
 	 */
 	static async add(dst, srcA, srcB) {
-		await Tensor._elementWiseOp(
+		await Tensor._elementWiseBinaryOp(
 			dst,
 			srcA,
 			srcB,
@@ -511,9 +516,43 @@ export class Tensor {
 		);
 	}
 	async add(other) {
-		const dst = await Tensor.empty(other.shape, other.dtype);
-		await Tensor.add(dst, this, other);
-		return dst;
+		return this._elementWiseBinaryOp(other, Tensor.add);
+	}
+
+	/**
+	 * Subtract together elementwise two tensors
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a-b
+	 * @param {Tensor} srcB b in a-b
+	 */
+	static async sub(dst, srcA, srcB) {
+		await Tensor._elementWiseBinaryOp(
+			dst,
+			srcA,
+			srcB,
+			/*wgsl*/ `srcA[srcAIdx]-srcB[srcBIdx]`
+		);
+	}
+	async sub(other) {
+		return this._elementWiseBinaryOp(other, Tensor.sub);
+	}
+
+	/**
+	 * Multiply together elementwise two tensors
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a*b
+	 * @param {Tensor} srcB b in a*b
+	 */
+	static async mul(dst, srcA, srcB) {
+		await Tensor._elementWiseBinaryOp(
+			dst,
+			srcA,
+			srcB,
+			/*wgsl*/ `srcA[srcAIdx]*srcB[srcBIdx]`
+		);
+	}
+	async mul(other) {
+		return this._elementWiseBinaryOp(other, Tensor.mul);
 	}
 
 	async print(minimized = true) {
@@ -558,9 +597,41 @@ export class Tensor {
 
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	await addExample();
+	await mulExample();
+	// await subExample();
+	// await addExample();
 	// await sumExample();
 	// await inverseIndexing();
+}
+
+async function mulExample() {
+	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = await Tensor.fill(-1, a.shape);
+	const c = await a.mul(b);
+
+	console.log("a");
+	await a.print();
+
+	console.log("b");
+	await b.print();
+
+	console.log("c = a*b");
+	await c.print();
+}
+
+async function subExample() {
+	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = await Tensor.fill(1, a.shape);
+	const c = await a.sub(b);
+
+	console.log("a");
+	await a.print();
+
+	console.log("b");
+	await b.print();
+
+	console.log("c = a-b");
+	await c.print();
 }
 
 async function addExample() {
