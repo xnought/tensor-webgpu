@@ -117,7 +117,7 @@ const arr = a.cpuBuffer();
 
 ### matmul(other)
 
-Raises tensor to the power of all entries elementwise in other.
+Matrix multiplication between two matrices. Must have 2D shape and matching inner dimension!
 
 ```js
 const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
