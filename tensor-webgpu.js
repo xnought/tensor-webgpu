@@ -449,12 +449,13 @@ export class Tensor {
 	}
 
 	/**
-	 * Add together elementwise two tensors
+	 * Elementwise kernel generator
 	 * @param {Tensor} dst result is stored
 	 * @param {Tensor} srcA a in a+b
 	 * @param {Tensor} srcB b in a+b
+	 * @param {string} op wgsl op
 	 */
-	static async add(dst, srcA, srcB) {
+	static async _elementWiseOp(dst, srcA, srcB, op) {
 		assert(
 			arrIsSame(srcA.shape, srcB.shape),
 			"srcA and srcB must have the same shape"
@@ -468,7 +469,7 @@ export class Tensor {
 		const THREADS_PER_WORKGROUP = 256;
 		const dtype = dst.dtype;
 
-		const add = gpu
+		const elementOp = gpu
 			.SourceModule(
 				/*wgsl*/ `
 			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
@@ -481,19 +482,38 @@ export class Tensor {
 					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
 					let srcAIdx = ${wgslBaseIdx(srcA.shape, srcA.strides, "gid.x", -1)};
 					let srcBIdx = ${wgslBaseIdx(srcB.shape, srcB.strides, "gid.x", -1)};
-
-					dst[dstIdx] = srcA[srcAIdx]+srcB[srcBIdx];
+					dst[dstIdx] = ${op};
 				}
 			}`
 			)
 			.getFunction("main");
 
-		await add(
+		await elementOp(
 			[numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)],
 			dst.gpuBuffer,
 			srcA.gpuBuffer,
 			srcB.gpuBuffer
 		);
+	}
+
+	/**
+	 * Add together elementwise two tensors
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a+b
+	 * @param {Tensor} srcB b in a+b
+	 */
+	static async add(dst, srcA, srcB) {
+		await Tensor._elementWiseOp(
+			dst,
+			srcA,
+			srcB,
+			/*wgsl*/ `srcA[srcAIdx]+srcB[srcBIdx]`
+		);
+	}
+	async add(other) {
+		const dst = await Tensor.empty(other.shape, other.dtype);
+		await Tensor.add(dst, this, other);
+		return dst;
 	}
 
 	async print(minimized = true) {
@@ -538,21 +558,23 @@ export class Tensor {
 
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	// await addExample();
-	await sumExample();
+	await addExample();
+	// await sumExample();
 	// await inverseIndexing();
 }
 
 async function addExample() {
-	const d = [0, 1, 2, 3, 4, 5, 6, 7];
-	const a = await Tensor.tensor(d, [2, 2, 2]);
-	const b = await Tensor.tensor(d, a.shape);
-	const c = await Tensor.empty(a.shape);
+	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = await Tensor.fill(1, a.shape);
+	const c = await a.add(b);
 
+	console.log("a");
 	await a.print();
+
+	console.log("b");
 	await b.print();
 
-	await Tensor.add(c, a, b);
+	console.log("c = a+b");
 	await c.print();
 }
 

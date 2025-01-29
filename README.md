@@ -112,8 +112,53 @@ const arr = a.cpuBuffer();
 
 ### add(other) 
 
-Add together two Tensors.
+Adds together two tensors.
 
+```js
+const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+const b = await Tensor.fill(1, a.shape);
+const c = await a.add(b);
+
+console.log("a");
+await a.print();
+
+console.log("b");
+await b.print();
+
+console.log("c = a+b");
+await c.print();
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[0, 1],
+  [2, 3]],
+
+ [[4, 5],
+  [6, 7]]]
+
+b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[1, 1],
+  [1, 1]],
+
+ [[1, 1],
+  [1, 1]]]
+
+c = a+b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[1, 2],
+  [3, 4]],
+
+ [[5, 6],
+  [7, 8]]]
+```
 
 ### sum(dim)
 
