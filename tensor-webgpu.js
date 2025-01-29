@@ -336,7 +336,7 @@ export class Tensor {
 			.SourceModule(
 				/*wgsl*/ `
 			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@group(0) @binding(1) var<storage, read_write> src: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
 
 			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
 			fn main(@builtin(global_invocation_id) gid : vec3u) {
@@ -383,7 +383,7 @@ export class Tensor {
 			.SourceModule(
 				/*wgsl*/ `
 			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@group(0) @binding(1) var<storage, read_write> src: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
 
 			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
 			fn main(@builtin(global_invocation_id) gid : vec3u) {
@@ -433,6 +433,50 @@ export class Tensor {
 		return dst;
 	}
 
+	/**
+	 * Add together elementwise two tensors
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a+b
+	 * @param {Tensor} srcB b in a+b
+	 */
+	static async add(dst, srcA, srcB) {
+		assert(
+			arrIsSame(srcA.shape, srcB.shape),
+			"srcA and srcB must have the same shape"
+		);
+		assert(
+			arrIsSame(dst.shape, srcB.shape),
+			"dst, srcA, and srcB, must have the same shape"
+		);
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+
+		const add = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> srcA: array<${dtype}>;
+			@group(0) @binding(2) var<storage, read> srcB: array<${dtype}>;
+
+		 	@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					dst[gid.x] = srcA[gid.x]+srcB[gid.x];
+				}
+			}`
+			)
+			.getFunction("main");
+
+		await add(
+			[numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)],
+			dst.gpuBuffer,
+			srcA.gpuBuffer,
+			srcB.gpuBuffer
+		);
+	}
+
 	async print(minimized = true) {
 		this.assertNotFreed();
 
@@ -479,7 +523,16 @@ export async function dev() {
 }
 
 async function addExample() {
-	console.log("ADD!");
+	const d = [0, 1, 2, 3, 4, 5, 6, 7];
+	const a = await Tensor.tensor(d, [4, 2]);
+	const b = await Tensor.tensor(d, a.shape);
+	const c = await Tensor.empty(a.shape);
+
+	await a.print();
+	await b.print();
+
+	await Tensor.add(c, a, b);
+	await c.print();
 }
 
 async function sumExample() {
