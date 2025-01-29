@@ -306,6 +306,58 @@ export class Tensor {
 	}
 
 	/**
+	 * Applies operation elementwise
+	 * @param {Tensor} dst
+	 * @param {Tensor} src
+	 * @param {string} op wgsl line where you set dst given, dstIdx, src, and srcIdx.
+	 */
+	static async _elementWiseUnaryOp(dst, src, op) {
+		assert(arrIsSame(dst.shape, src.shape), "dst must have shape as src");
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+		const unaryOp = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					${op};
+				}
+			}
+			`
+			)
+			.getFunction("main");
+
+		await unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+	}
+
+	/**
+	 * Copies the values
+	 * @param {Tensor} dst
+	 * @param {Tensor} src
+	 */
+	static async contiguous(dst, src) {
+		await Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = src[srcIdx]`);
+	}
+
+	/**
+	 * Copies the current tensor contiguously (so even an transposed data, will be shoved together)
+	 * Main difference between this and .copy() is we recompute strides here rather than copying
+	 * @returns {Promise<Tensor>}
+	 */
+	async contiguous() {
+		const dst = await Tensor.empty(this.shape, this.dtype);
+		await Tensor.contiguous(dst, this);
+		return dst;
+	}
+
+	/**
 	 * Sum over across the last dimension
 	 * @param {Tensor} dst result is stored
 	 * @param {Tensor} src what values are raised to the power
@@ -770,9 +822,25 @@ async function matmulExample() {
 	}
 }
 
+async function copyExample() {
+	const a = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+	const aT = a.T;
+
+	console.log("a");
+	await a.print();
+
+	console.log("a.T");
+	await aT.print();
+
+	console.log("a.T buffer", await aT.cpuBuffer());
+	console.log();
+	console.log("a.T.contiguous() buffer", await (await aT.contiguous()).cpuBuffer());
+}
+
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	await divExample();
+	await copyExample();
+	// await divExample();
 	// await matmulExample3();
 	// await matmulExample2();
 	// await powExample();
