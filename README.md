@@ -110,6 +110,10 @@ const arr = a.cpuBuffer();
 
 ## Tensor Operations
 
+### add(other) 
+
+Add together two Tensors.
+
 
 ### sum(dim)
 
@@ -148,6 +152,8 @@ gpuBuffer=
 ```
 
 ### pow(number)
+
+NOTE: This function is a bit buggy right now.
 
 Raises every element in the Tensor to the given power. 
 

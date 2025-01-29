@@ -475,8 +475,11 @@ export class Tensor {
 
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
+	await addExample();
+}
 
-	await sumExample();
+async function addExample() {
+	console.log("ADD!");
 }
 
 async function sumExample() {
@@ -487,8 +490,8 @@ async function sumExample() {
 	console.log("Sum across");
 	await (await a.sum(-1)).print();
 }
-async function transposeExample(gpu) {
-	const a = await Tensor.tensor(gpu, [1, 2, 3], [3, 1]);
+async function transposeExample() {
+	const a = await Tensor.tensor([1, 2, 3], [3, 1]);
 	console.log("a");
 	await a.print();
 
@@ -498,19 +501,19 @@ async function transposeExample(gpu) {
 	console.log("a.T");
 	await a.T.print();
 }
-async function powExample(gpu) {
-	const a = await Tensor.tensor(gpu, [1, 2, -3], [3, 1], "f32");
+async function powExample() {
+	const a = await Tensor.tensor([1, 2, -3], [3, 1], "f32");
 	console.log("a");
 	await a.print();
 
 	console.log("a^5");
 	await (await a.pow(5)).print();
 }
-async function randomExample(gpu) {
-	const a = await Tensor.random(gpu, [4, 1], "f32");
+async function randomExample() {
+	const a = await Tensor.random([4, 1], "f32");
 	await a.print();
 }
-async function fillExample(gpu) {
-	const a = await Tensor.fill(gpu, 1, [2, 2, 2], "u32");
+async function fillExample() {
+	const a = await Tensor.fill(1, [2, 2, 2], "u32");
 	await a.print();
 }
