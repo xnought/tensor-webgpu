@@ -509,6 +509,11 @@ export class Tensor {
 		const workgroups = [numWorkgroups(dst.shape[0], xThreads), numWorkgroups(dst.shape[1], yThreads)];
 		await matmul(workgroups, dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
 	}
+	async matmul(other) {
+		const dst = await Tensor.empty([this.shape[0], other.shape[1]]);
+		await Tensor.matmul(dst, this, other);
+		return dst;
+	}
 
 	async print(minimized = true) {
 		this.assertNotFreed();
@@ -658,6 +663,18 @@ async function inverseIndexing31() {
 	}
 }
 
+async function matmulExample3() {
+	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
+	const b = await Tensor.tensor([0, 1, 2, 3, 4, 5], [3, 2]);
+	const c = await a.matmul(b);
+
+	await a.print();
+	await b.print();
+
+	console.log("GPU RESULT");
+	await c.print();
+}
+
 async function matmulExample2() {
 	const shape = [784, 784];
 	const a = await Tensor.fill(1, shape);
@@ -728,6 +745,7 @@ async function matmulExample() {
 
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
+	await matmulExample3();
 	// await matmulExample2();
 	// await powExample();
 	// await mulExample();

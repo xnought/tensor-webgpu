@@ -13,7 +13,7 @@ Nearly all computations done on the GPU.
 - [x] sub
 - [x] mult
 - [ ] div
-- [ ] matmul
+- [x] matmul
 - [ ] reshape
 - [ ] contiguous
 - [ ] expand
@@ -114,6 +114,43 @@ const arr = a.cpuBuffer();
 ```
 
 ## Tensor Operations
+
+### matmul(other)
+
+Raises tensor to the power of all entries elementwise in other.
+
+```js
+const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
+const b = await Tensor.tensor([0, 1, 2, 3, 4, 5], [3, 2]);
+const c = await a.matmul(b);
+
+await a.print();
+await b.print();
+
+console.log("GPU RESULT");
+await c.print();
+```
+
+`console outputs ↓`
+
+```js
+dtype='f32', shape=[2,3], strides=[3,1],
+gpuBuffer=
+[[1, 2, 3],
+ [4, 5, 6]]
+
+dtype='f32', shape=[3,2], strides=[2,1],
+gpuBuffer=
+[[0, 1],
+ [2, 3],
+ [4, 5]]
+
+GPU RESULT
+dtype='f32', shape=[2,2], strides=[2,1],
+gpuBuffer=
+[[16, 22],
+ [34, 49]]
+```
 
 ### pow(other)
 
