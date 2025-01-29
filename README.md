@@ -110,7 +110,7 @@ Asks the GPU to return the data to the CPU. Returns as a JS array given a tensor
 
 
 ```js
-const arr = a.cpuBuffer();
+const arr = await a.cpuBuffer();
 ```
 
 ## Tensor Operations
