@@ -167,15 +167,30 @@ function negIndexWrap(l, dim) {
  *
  * @param {Shape} shape
  * @param {Strides} strides
+ * @param {string} globalX
+ * @param {number} upTo -1 means up to the very end, -2 is up to the second to last
  * @returns {string}
  */
-function wgslBaseIdx(shape, strides, globalX = "gid.x") {
+function wgslBaseIdx(
+	shape,
+	strides,
+	globalX = "gid.x",
+	upTo = -1,
+	divCast = ""
+) {
 	let wgsl = "";
-	for (let i = 0; i < shape.length - 1; i++) {
-		const div = i === 0 ? `${globalX}` : `(${globalX}/${shape[i - 1]})`;
-		const idx = `(${div} % ${shape[i]})`;
-		wgsl += `(${strides[i]}*${idx})`;
-		if (i < shape.length - 2) wgsl += " + ";
+	let accShape = 1;
+	// compute in reverse, so use last stride in mult
+	for (
+		let reverseI = shape.length - 1 + upTo + 1;
+		reverseI >= 0;
+		reverseI--
+	) {
+		const idx = `(${divCast}(${globalX}/${accShape})%${shape[reverseI]})`;
+		accShape *= shape.at(reverseI - 1); // may or may not bite me in the ass
+		const stride = strides[reverseI];
+		wgsl += `(${stride}*${idx})`;
+		if (reverseI > 0) wgsl += "+";
 	}
 	return wgsl;
 }
@@ -388,8 +403,8 @@ export class Tensor {
 			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
 			fn main(@builtin(global_invocation_id) gid : vec3u) {
 				if(gid.x < ${LENGTH}) {
-					let baseSrcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x")};
-					let baseDstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x")};
+					let baseSrcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -2)};
+					let baseDstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -2)};
 					var summed = ${dtype}(0);
 					for(var i: u32 = 0; i < ${src.shape.at(-1)}; i++) {
 						summed += src[baseSrcIdx + i*${src.strides.at(-1)}];
@@ -463,7 +478,11 @@ export class Tensor {
 		 	@compute @workgroup_size(${THREADS_PER_WORKGROUP})
 		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
 				if(gid.x < ${LENGTH}) {
-					dst[gid.x] = srcA[gid.x]+srcB[gid.x];
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					let srcAIdx = ${wgslBaseIdx(srcA.shape, srcA.strides, "gid.x", -1)};
+					let srcBIdx = ${wgslBaseIdx(srcB.shape, srcB.strides, "gid.x", -1)};
+
+					dst[dstIdx] = srcA[srcAIdx]+srcB[srcBIdx];
 				}
 			}`
 			)
@@ -519,12 +538,14 @@ export class Tensor {
 
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	await addExample();
+	// await addExample();
+	await sumExample();
+	// await inverseIndexing();
 }
 
 async function addExample() {
 	const d = [0, 1, 2, 3, 4, 5, 6, 7];
-	const a = await Tensor.tensor(d, [4, 2]);
+	const a = await Tensor.tensor(d, [2, 2, 2]);
 	const b = await Tensor.tensor(d, a.shape);
 	const c = await Tensor.empty(a.shape);
 
@@ -569,4 +590,50 @@ async function randomExample() {
 async function fillExample() {
 	const a = await Tensor.fill(1, [2, 2, 2], "u32");
 	await a.print();
+}
+
+async function inverseIndexing() {
+	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7], [2, 2, 2], "f32");
+	const c = a.transpose([0, 2, 1]);
+
+	await c.print();
+	for (let i = 0; i < 4; i++) {
+		const idx = [
+			Math.floor(i / c.shape[0]) % c.shape[0],
+			Math.floor(i) % c.shape[1],
+		];
+		const wgslIdx = wgslBaseIdx(
+			c.shape,
+			c.strides,
+			`${i}`,
+			-2,
+			"Math.floor"
+		);
+		const a = eval(wgslIdx);
+
+		console.log(idx[0] * c.strides[0] + idx[1] * c.strides[1]);
+		console.log(a);
+	}
+
+	for (let i = 0; i < 8; i++) {
+		const idx = [
+			Math.floor(i / c.strides[0]) % c.shape[0],
+			Math.floor(i / c.strides[1]) % c.shape[1],
+			Math.floor(i / c.strides[2]) % c.shape[2],
+		];
+		console.log(
+			idx[0] * c.strides[0] +
+				idx[1] * c.strides[1] +
+				idx[2] * c.strides[2]
+		);
+		const wgslIdx = wgslBaseIdx(
+			c.shape,
+			c.strides,
+			`${i}`,
+			-1,
+			"Math.floor"
+		);
+		const a = eval(wgslIdx);
+		console.log(a);
+	}
 }
