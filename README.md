@@ -12,7 +12,12 @@ Nearly all computations done on the GPU.
 - [x] add
 - [x] sub
 - [x] mult
-- [ ] dot
+- [ ] div
+- [ ] matmul
+- [ ] reshape
+- [ ] contiguous
+- [ ] expand
+- [ ] squeeze
 
 ## Getting Started
 
