@@ -12,12 +12,13 @@ Nearly all computations done on the GPU.
 - [x] add
 - [x] sub
 - [x] mult
-- [ ] div
+- [x] div
 - [x] matmul
-- [ ] reshape
 - [ ] contiguous
 - [ ] expand
 - [ ] squeeze
+- [ ] slice
+- [ ] reshape
 
 ## Getting Started
 
@@ -196,6 +197,55 @@ gpuBuffer=
  [9]]
 ```
 
+### div(other)
+
+Divides two tensors.
+
+```js
+const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+const b = await Tensor.fill(2, a.shape);
+const c = await a.div(b);
+
+console.log("a");
+await a.print();
+
+console.log("b");
+await b.print();
+
+console.log("c = a/b");
+await c.print();
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[0, 1],
+  [2, 3]],
+
+ [[4, 5],
+  [6, 7]]]
+
+b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[2, 2],
+  [2, 2]],
+
+ [[2, 2],
+  [2, 2]]]
+
+c = a/b
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[0, 0.5],
+  [1, 1.5]],
+
+ [[2, 2.5],
+  [3, 3.5]]]
+```
 ### mul(other)
 
 Multiplies two tensors.

@@ -451,6 +451,19 @@ export class Tensor {
 	}
 
 	/**
+	 * Divide together elementwise two tensors
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a/b
+	 * @param {Tensor} srcB b in a/b
+	 */
+	static async div(dst, srcA, srcB) {
+		await Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]/srcB[srcBIdx]`);
+	}
+	async div(other) {
+		return this._elementWiseBinaryOp(other, Tensor.div);
+	}
+
+	/**
 	 * raise to the power elementwise two tensors
 	 * @param {Tensor} dst result is stored
 	 * @param {Tensor} srcA a in a^b
@@ -547,6 +560,20 @@ export class Tensor {
 	}
 }
 
+async function divExample() {
+	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = await Tensor.fill(2, a.shape);
+	const c = await a.div(b);
+
+	console.log("a");
+	await a.print();
+
+	console.log("b");
+	await b.print();
+
+	console.log("c = a/b");
+	await c.print();
+}
 async function mulExample() {
 	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
 	const b = await Tensor.fill(-1, a.shape);
@@ -745,7 +772,8 @@ async function matmulExample() {
 
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	await matmulExample3();
+	await divExample();
+	// await matmulExample3();
 	// await matmulExample2();
 	// await powExample();
 	// await mulExample();
