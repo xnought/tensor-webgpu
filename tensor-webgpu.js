@@ -626,13 +626,36 @@ async function inverseIndexing31() {
 
 async function matmulExample() {
 	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
-	const b = await Tensor.fill(1, [3, 2]);
+	const b = await Tensor.tensor([0, 1, 2, 3, 4, 5], [3, 2]);
 	const c = await Tensor.empty([a.shape[0], b.shape[1]]);
-	Tensor.matmul(c, a, b);
+	await Tensor.matmul(c, a, b);
 
-	a.print();
-	b.print();
-	c.print();
+	await a.print();
+	await b.print();
+
+	console.log("GPU RESULT");
+	await c.print();
+
+	cpuMatmul: {
+		const acpu = await a.cpuBuffer();
+		const bcpu = await b.cpuBuffer();
+		const ccpu = [0, 0, 0, 0];
+		const m = a.shape[0];
+		const n = a.shape[1];
+		const l = b.shape[1];
+		for (let i = 0; i < m; i++) {
+			for (let j = 0; j < l; j++) {
+				let cidx = i * c.strides[0] + j * c.strides[1];
+				for (let k = 0; k < n; k++) {
+					let aidx = i * a.strides[0] + k * a.strides[1];
+					let bidx = k * b.strides[0] + j * b.strides[1];
+					ccpu[cidx] += acpu[aidx] * bcpu[bidx];
+				}
+			}
+		}
+		console.log("CPU COMPUTED ACTUAL RESULT!");
+		console.log(ndarrayToString(ccpu, c.shape, c.strides));
+	}
 }
 
 export async function dev() {
