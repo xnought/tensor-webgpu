@@ -837,9 +837,38 @@ async function copyExample() {
 	console.log("a.T.contiguous() buffer", await (await aT.contiguous()).cpuBuffer());
 }
 
+async function linearRegressionExample() {
+	const n = 5;
+	const line = Array(n)
+		.fill(0)
+		.map((_, i) => i);
+	const x = await Tensor.tensor(line, [n, 1]);
+	const y = await Tensor.tensor(line, [n, 1]);
+
+	const w = await Tensor.tensor([0], [1, 1]);
+	const b = await Tensor.tensor([0], [1, 1]);
+
+	const yhat = await x.matmul(w); // (n, 1)
+	const loss = await (await yhat.sub(y)).sum(0);
+
+	console.log("x");
+	await x.print();
+	console.log("y");
+	await y.print();
+	console.log("w");
+	await w.print();
+	console.log("b");
+	await b.print();
+	console.log("yhat");
+	await yhat.print();
+	console.log("loss");
+	await loss.print();
+}
+
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	await copyExample();
+	await linearRegressionExample();
+	// await copyExample();
 	// await divExample();
 	// await matmulExample3();
 	// await matmulExample2();
