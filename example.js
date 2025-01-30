@@ -1,9 +1,11 @@
-import { Tensor } from "../tensorscript";
+import { Tensor } from "./tensorscript";
 
 main();
 
 async function main() {
+	if (!navigator.gpu) throw Error("No WebGPU GPU on this machine!");
 	const adapter = await navigator.gpu.requestAdapter();
+	if (!adapter) throw Error("Adaptor not found!");
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 

@@ -255,7 +255,7 @@ export class Tensor {
 	 * @param device
 	 */
 	static setDevice(device) {
-		assert(!device, "device not found!");
+		assert(device !== undefined, "device not found!");
 		gpu = new GPU(device);
 	}
 

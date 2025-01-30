@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@webgpu/types':
+        specifier: ^0.1.53
+        version: 0.1.53
       vite:
         specifier: ^6.0.5
         version: 6.0.11
@@ -262,6 +265,9 @@ packages:
   '@types/estree@1.0.6':
     resolution: {integrity: sha512-AYnb1nQyY49te+VRAVgmzfcgjYS91mY5P0TKUDCLEM+gNnA+3T6rWITXRLYCpahpqSQbN5cE+gHpnPyXjHWxcw==}
 
+  '@webgpu/types@0.1.53':
+    resolution: {integrity: sha512-x+BLw/opaz9LiVyrMsP75nO1Rg0QfrACUYIbVSfGwY/w0DiWIPYYrpte6us//KZXinxFAOJl0+C17L1Vi2vmDw==}
+
   esbuild@0.24.2:
     resolution: {integrity: sha512-+9egpBW8I3CD5XPe0n6BfT5fxLzxrlDzqydF3aviG+9ni1lDC/OvMHcxqEFV0+LANZG5R1bFMWfUrjVsdwxJvA==}
     engines: {node: '>=18'}
@@ -468,6 +474,8 @@ snapshots:
     optional: true
 
   '@types/estree@1.0.6': {}
+
+  '@webgpu/types@0.1.53': {}
 
   esbuild@0.24.2:
     optionalDependencies:

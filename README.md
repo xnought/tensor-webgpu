@@ -646,8 +646,9 @@ gpuBuffer=
 
 ## Dev
 
+This will run download the webgpu types (just for ease of development on vscode) and run the webserver with examples from examples.js.
+
 ```bash
-cd example
-pnpm install
+pnpm install 
 pnpm dev
 ```
