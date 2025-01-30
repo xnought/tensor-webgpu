@@ -1,8 +1,8 @@
-# tensor-webgpu
+# TensorScript
 
 Tensor Library that uses https://github.com/xnought/webgpu-compute for WebGPU computation.
 
-Nearly all computations done on the GPU.
+All computation done on the GPU!
 
 **Roadmap**
 
@@ -25,14 +25,14 @@ Nearly all computations done on the GPU.
 Download both JS (they have no dependencies) and simply import and use them.
 
 ```bash
-wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/webgpu-compute.js
-wget https://raw.githubusercontent.com/xnought/tensor-webgpu/refs/heads/main/tensor-webgpu.js
+wget https://raw.githubusercontent.com/xnought/tensorscript/refs/heads/main/webgpu-compute.js
+wget https://raw.githubusercontent.com/xnought/tensorscript/refs/heads/main/tensorscript.js
 ```
 
 Before you can do anything, you must set the global GPU/device to your GPU
 
 ```js
-import {Tensor} from "./tensor-webgpu";
+import {Tensor} from "./tensorscript";
 import {GPU} from "./webgpu-compute";
 Tensor.setDevice(await GPU.init());
 ```
