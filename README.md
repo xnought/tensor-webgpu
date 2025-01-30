@@ -29,12 +29,14 @@ wget https://raw.githubusercontent.com/xnought/tensorscript/refs/heads/main/webg
 wget https://raw.githubusercontent.com/xnought/tensorscript/refs/heads/main/tensorscript.js
 ```
 
-Before you can do anything, you must set the global GPU/device to your GPU
+Before you can do anything, you must set the global GPU/device to your GPU.
 
 ```js
 import {Tensor} from "./tensorscript";
-import {GPU} from "./webgpu-compute";
-Tensor.setDevice(await GPU.init());
+
+const adapter = await navigator.gpu.requestAdapter();
+const device = await adapter.requestDevice();
+Tensor.setDevice(device);
 ```
 
 Then go wild!
