@@ -15,9 +15,8 @@ Nearly all computations done on the GPU.
 - [x] div
 - [x] matmul
 - [x] contiguous
-- [ ] Broadcasting
-- [ ] Reshape
-- [ ] Squeeze
+- [x] unsqueeze
+- [x] expand
 - [ ] Linear Regression
 - [ ] MLP Example
 

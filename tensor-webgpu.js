@@ -205,6 +205,33 @@ function insertTypedArray(a, idx, value) {
 	return cpy;
 }
 
+/**
+ * Check if the shape as a subshape of expandedShape
+ * Returns the idxs of values that aren't part of the subshape
+ * @param {Shape} shape
+ * @param {Shape} expandedShape
+ * @return {[boolean, number[]]}
+ */
+function subShapeContained(shape, expandedShape) {
+	let contained = false;
+	let idxs = [];
+	let i = 0;
+	while (i < expandedShape.length) {
+		const window = expandedShape.slice(i, i + shape.length);
+
+		if (!contained && arrIsSame(window, shape)) {
+			i += shape.length;
+			contained = true;
+			continue;
+		} else {
+			idxs.push(i);
+		}
+		i++;
+	}
+
+	return [contained, idxs];
+}
+
 /** @type {GPU} */
 let gpu = undefined; // NO TOUCHY AFTER SET!
 export class Tensor {
@@ -329,12 +356,31 @@ export class Tensor {
 	/**
 	 * Introduce a new dimension with shape 1 at the desired dimension
 	 * @param {number} dim
+	 * @returns {Tensor}
 	 */
 	unsqueeze(dim = 0) {
 		dim = negIndexWrap(this.shape.length + 1, dim);
 		const newShape = insertTypedArray(this.shape, dim, 1);
 		const newStride = this.shape.slice(dim).reduce((prev, cur) => prev * cur, 1); // multiply the shape to the right of dim
 		const newStrides = insertTypedArray(this.strides, dim, newStride);
+		return new Tensor(this.gpuBuffer, newShape, newStrides, this.dtype);
+	}
+
+	/**
+	 * @param {number} expandTo
+	 * @param {number} dim
+	 * @returns  {Tensor}
+	 */
+	expandTo(expandTo, dim) {
+		dim = negIndexWrap(this.shape.length, dim);
+		if (expandTo === this.shape[dim]) return this; // already expanded!
+
+		const newShape = copyTypedArray(this.shape);
+		const newStrides = copyTypedArray(this.strides);
+
+		newShape[dim] = expandTo;
+		newStrides[dim] = 0;
+
 		return new Tensor(this.gpuBuffer, newShape, newStrides, this.dtype);
 	}
 
@@ -878,10 +924,10 @@ async function linearRegressionExample() {
 	const x = await Tensor.tensor(line, [n, 1]);
 	const y = await Tensor.tensor(line, [n, 1]);
 
-	const w = await Tensor.tensor([0], [1, 1]);
-	const b = await Tensor.tensor([0], [1, 1]);
+	const w = await Tensor.tensor([-1], [1, 1]);
+	const b = await Tensor.tensor([1.2], [1, 1]);
 
-	const yhat = await x.matmul(w); // (n, 1)
+	const yhat = await (await x.matmul(w)).add(b.expandTo(n, 0)); // (n, 1)
 	const loss = await (await yhat.sub(y)).sum(0);
 
 	console.log("x");
@@ -904,10 +950,19 @@ async function unsqueezeExample() {
 	await a.unsqueeze(0).print();
 }
 
+async function expandExample() {
+	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
+	await a.print();
+	await a.unsqueeze(-1).expandTo(2, -1).print();
+
+	const b = (await Tensor.tensor([1], [1, 1])).expandTo(2, 0).expandTo(3, -1).unsqueeze(-1).expandTo(2, -1);
+}
+
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	await unsqueezeExample();
-	// await linearRegressionExample();
+	// await expandExample();
+	// await unsqueezeExample();
+	await linearRegressionExample();
 	// await copyExample();
 	// await divExample();
 	// await matmulExample3();
