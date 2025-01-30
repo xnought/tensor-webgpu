@@ -106,51 +106,6 @@ gpuBuffer=
   [1, 1]]]
 ```
 
-### cpuBuffer()
-
-Asks the GPU to return the data to the CPU. Returns as a JS array given a tensor `a` in this case;
-
-```js
-const arr = await a.cpuBuffer();
-```
-
-### contiguous()
-
-Deep copies the tensor and makes sure the memory is contiguous with how it's printing. 
-
-```js
-const a = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
-const aT = a.T;
-
-console.log("a");
-await a.print();
-
-console.log("a.T");
-await aT.print();
-
-console.log("a.T buffer", await aT.cpuBuffer());
-console.log("a.T.contiguous() buffer", await (await aT.contiguous()).cpuBuffer());
-```
-
-`console outputs ↓`
-
-```js
-a
-dtype='f32', shape=[2,2], strides=[2,1],
-gpuBuffer=
-[[1, 2],
- [3, 4]]
-
-a.T
-dtype='f32', shape=[2,2], strides=[1,2],
-gpuBuffer=
-[[1, 3],
- [2, 4]]
-
-a.T buffer Float32Array(4) [1, 2, 3, 4, buffer: ArrayBuffer(16), byteLength: 16, byteOffset: 0, length: 4, Symbol(Symbol.toStringTag): 'Float32Array']
-
-a.T.contiguous() buffer Float32Array(4) [1, 3, 2, 4, buffer: ArrayBuffer(16), byteLength: 16, byteOffset: 0, length: 4, Symbol(Symbol.toStringTag): 'Float32Array']
-```
 
 
 ## Tensor Operations
@@ -535,6 +490,81 @@ This function API also allows for in place operations. Like squaring
 await Tensor.pow(a, a, 2); // compute a^2 then override a with result 
 ```
 
+### cpuBuffer()
+
+Asks the GPU to return the data to the CPU. Returns as a JS array given a tensor `a` in this case;
+
+```js
+const arr = await a.cpuBuffer();
+```
+
+### contiguous()
+
+Deep copies the tensor and makes sure the memory is contiguous with how it's printing. 
+
+```js
+const a = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+const aT = a.T;
+
+console.log("a");
+await a.print();
+
+console.log("a.T");
+await aT.print();
+
+console.log("a.T buffer", await aT.cpuBuffer());
+console.log("a.T.contiguous() buffer", await (await aT.contiguous()).cpuBuffer());
+```
+
+`console outputs ↓`
+
+```js
+a
+dtype='f32', shape=[2,2], strides=[2,1],
+gpuBuffer=
+[[1, 2],
+ [3, 4]]
+
+a.T
+dtype='f32', shape=[2,2], strides=[1,2],
+gpuBuffer=
+[[1, 3],
+ [2, 4]]
+
+a.T buffer Float32Array(4) [1, 2, 3, 4, buffer: ArrayBuffer(16), byteLength: 16, byteOffset: 0, length: 4, Symbol(Symbol.toStringTag): 'Float32Array']
+
+a.T.contiguous() buffer Float32Array(4) [1, 3, 2, 4, buffer: ArrayBuffer(16), byteLength: 16, byteOffset: 0, length: 4, Symbol(Symbol.toStringTag): 'Float32Array']
+```
+
+### unsqueeze(dim)
+
+Inserts a new dimension at the provided dim. 
+
+```js
+const a = await Tensor.tensor([1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+await a.print();
+await a.unsqueeze(0).print();
+```
+
+`console outputs ↓`
+
+```js
+dtype='f32', shape=[2,2,2], strides=[4,2,1],
+gpuBuffer=
+[[[1, 2],
+  [3, 4]],
+
+ [[5, 6],
+  [7, 8]]]
+
+dtype='f32', shape=[1,2,2,2], strides=[8,4,2,1],
+gpuBuffer=
+[[[[1, 2],
+   [3, 4]],
+
+  [[5, 6],
+   [7, 8]]]]
+```
 
 
 ## Dev

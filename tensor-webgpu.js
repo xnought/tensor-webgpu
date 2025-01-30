@@ -184,6 +184,27 @@ function wgslBaseIdx(shape, strides, globalX = "gid.x", upTo = -1, divCast = "")
 	return wgsl;
 }
 
+/**
+ * Returns a copy with the inserted value
+ * @param {TypedArray} a
+ * @param {number} idx
+ * @param {number} value
+ */
+function insertTypedArray(a, idx, value) {
+	const cpy = new a.constructor(a.length + 1);
+	cpy[idx] = value;
+
+	let a_i = 0;
+	for (let c_i = 0; c_i < cpy.length; c_i++) {
+		if (c_i === idx) {
+			continue;
+		}
+		cpy[c_i] = a[a_i];
+		a_i++;
+	}
+	return cpy;
+}
+
 /** @type {GPU} */
 let gpu = undefined; // NO TOUCHY AFTER SET!
 export class Tensor {
@@ -303,6 +324,18 @@ export class Tensor {
 		multiSwapItems(swappedStrides, swaps);
 
 		return new Tensor(this.gpuBuffer, swappedShape, swappedStrides, this.dtype);
+	}
+
+	/**
+	 * Introduce a new dimension with shape 1 at the desired dimension
+	 * @param {number} dim
+	 */
+	unsqueeze(dim = 0) {
+		dim = negIndexWrap(this.shape.length + 1, dim);
+		const newShape = insertTypedArray(this.shape, dim, 1);
+		const newStride = this.shape.slice(dim).reduce((prev, cur) => prev * cur, 1); // multiply the shape to the right of dim
+		const newStrides = insertTypedArray(this.strides, dim, newStride);
+		return new Tensor(this.gpuBuffer, newShape, newStrides, this.dtype);
 	}
 
 	/**
@@ -865,9 +898,16 @@ async function linearRegressionExample() {
 	await loss.print();
 }
 
+async function unsqueezeExample() {
+	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	await a.print();
+	await a.unsqueeze(0).print();
+}
+
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	await linearRegressionExample();
+	await unsqueezeExample();
+	// await linearRegressionExample();
 	// await copyExample();
 	// await divExample();
 	// await matmulExample3();
