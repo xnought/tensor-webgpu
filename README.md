@@ -17,6 +17,7 @@ All computation done on the GPU!
 - [x] contiguous
 - [x] unsqueeze
 - [x] expand
+- [ ] Auto differentiation
 - [ ] Linear Regression
 - [ ] MLP Example
 
