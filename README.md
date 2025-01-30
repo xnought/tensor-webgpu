@@ -565,6 +565,83 @@ gpuBuffer=
    [7, 8]]]]
 ```
 
+### expandTo(upTo, dim)
+
+Repeats/expands a dimension upTo a certain number at the specified dim.
+
+
+```js
+const a = await Tensor.tensor([1, 2, 3], [1, 3]);
+await a.print();
+console.log("expand the first dimension to 3");
+await a.expandTo(3, 0).print();
+```
+
+`console outputs ↓`
+
+```js
+dtype='f32', shape=[1,3], strides=[3,1],
+gpuBuffer=
+[[1, 2, 3]]
+
+expand the first dimension to 3
+dtype='f32', shape=[3,3], strides=[0,1],
+gpuBuffer=
+[[1, 2, 3],
+ [1, 2, 3],
+ [1, 2, 3]]
+```
+
+This function is very useful as a way to manually do broadcasting. For example, if I want to scalar multiply `7* [[1,2],[3,4]]` I can expand the 7 to look like the tensor
+
+```js
+let scalar = await Tensor.tensor([7], [1, 1]);
+const tensor = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+
+console.log("scalar");
+await scalar.print();
+console.log("tensor");
+await tensor.print();
+
+// scalar.mul(tensor) fails since tensor.shape != scalar.shape
+// instead expand to shape [2,2] ↓
+scalar = scalar.expandTo(2, 0).expandTo(2, 1);
+
+console.log("scalar expanded");
+await scalar.print();
+
+console.log("scalar*tensor now works");
+const result = await scalar.mul(tensor);
+await result.print();
+```
+
+`console outputs ↓`
+
+```js
+scalar
+dtype='f32', shape=[1,1], strides=[1,1],
+gpuBuffer=
+[[7]]
+
+tensor
+dtype='f32', shape=[2,2], strides=[2,1],
+gpuBuffer=
+[[1, 2],
+ [3, 4]]
+
+scalar expanded
+dtype='f32', shape=[2,2], strides=[0,0],
+gpuBuffer=
+[[7, 7],
+ [7, 7]]
+
+scalar*tensor now works
+dtype='f32', shape=[2,2], strides=[2,1],
+gpuBuffer=
+[[7, 14],
+ [21, 28]]
+```
+
 
 ## Dev
 

@@ -951,18 +951,37 @@ async function unsqueezeExample() {
 }
 
 async function expandExample() {
-	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
+	const a = await Tensor.tensor([1, 2, 3], [1, 3]);
 	await a.print();
-	await a.unsqueeze(-1).expandTo(2, -1).print();
+	console.log("expand the first dimension to 3");
+	await a.expandTo(3, 0).print();
 
-	const b = (await Tensor.tensor([1], [1, 1])).expandTo(2, 0).expandTo(3, -1).unsqueeze(-1).expandTo(2, -1);
+	console.log("useful example");
+	let scalar = await Tensor.tensor([7], [1, 1]);
+	const tensor = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+
+	console.log("scalar");
+	await scalar.print();
+	console.log("tensor");
+	await tensor.print();
+
+	// scalar.mul(tensor) fails since tensor.shape != scalar.shape
+	// instead expand to shape [2,2] ↓
+	scalar = scalar.expandTo(2, 0).expandTo(2, 1);
+
+	console.log("scalar expanded");
+	await scalar.print();
+
+	console.log("scalar*tensor now works");
+	const result = await scalar.mul(tensor);
+	await result.print();
 }
 
 export async function dev() {
 	Tensor.setDevice(await GPU.init());
-	// await expandExample();
+	// await linearRegressionExample();
+	await expandExample();
 	// await unsqueezeExample();
-	await linearRegressionExample();
 	// await copyExample();
 	// await divExample();
 	// await matmulExample3();
