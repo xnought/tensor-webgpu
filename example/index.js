@@ -1,4 +1,4 @@
-import * as t from "../tensor-webgpu";
+import * as t from "../tensorscript";
 
 main();
 
