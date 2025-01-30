@@ -22,10 +22,9 @@ All computation done on the GPU!
 
 ## Getting Started
 
-Download both JS (they have no dependencies) and simply import and use them.
+Download the library (no dependencies)
 
 ```bash
-wget https://raw.githubusercontent.com/xnought/tensorscript/refs/heads/main/webgpu-compute.js
 wget https://raw.githubusercontent.com/xnought/tensorscript/refs/heads/main/tensorscript.js
 ```
 
