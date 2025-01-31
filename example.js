@@ -8,6 +8,7 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
+	// await expandExample2();
 	await sumGradExample();
 	// await linearRegressionExample();
 	// await expandExample();
@@ -326,5 +327,22 @@ async function expandExample() {
 
 	console.log("scalar*tensor now works");
 	const result = await scalar.mul(tensor);
+	await result.print();
+}
+
+async function expandExample2() {
+	let scalar = await Tensor.tensor([7], [1, 1]);
+	const tensor = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+
+	console.log("scalar");
+	await scalar.print();
+	console.log("tensor");
+	await tensor.print();
+
+	console.log("scalar expanded");
+	await scalar.expand(tensor.shape).print();
+
+	console.log("scalar*tensor now works");
+	const result = await scalar.expand(tensor.shape).mul(tensor);
 	await result.print();
 }

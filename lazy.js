@@ -17,8 +17,7 @@ const UNARY_OPS = {
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_UNARY_OPS = {
 	[SUM_OP]: async ([a], resultGrad) => {
-		const ones = await Tensor.fill(1, a.shape, a.dtype);
-		const grad = await ones.mul(resultGrad);
+		const grad = resultGrad.expand(a.shape);
 		return [grad]; // [dr/da]
 	},
 };
@@ -30,8 +29,7 @@ const BINARY_OPS = {
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_BINARY_OPS = {
 	[ADD_OP]: async ([a, b], resultGrad) => {
-		const ones = await Tensor.fill(1, a.shape, a.dtype);
-		const grad = await ones.mul(resultGrad);
+		const grad = resultGrad.expand(a.shape);
 		return [grad, grad]; // [dr/da, dr/db]
 	},
 };
@@ -107,9 +105,18 @@ export class LazyTensor {
 		return this.result;
 	}
 
+	/**
+	 * TODO: FIX THE ACCUMULATION WEBGPU BUG
+	 * @param {Tensor} newGrad
+	 */
 	async _accumulateGradient(newGrad) {
-		if (this.grad === undefined) this.grad = newGrad; // 0 + newGrad = newGrad
-		else await Tensor.add(this.grad, this.grad, newGrad); // this.grad += newGrad
+		if (this.grad === undefined) {
+			this.grad = await Tensor.fill(0, this.result.shape, this.result.dtype);
+		}
+		// this.grad += newGrad;
+		const thisGrad = await this.grad.add(newGrad);
+		this.grad.free();
+		this.grad = thisGrad;
 	}
 
 	async backward() {

@@ -10,8 +10,8 @@ const DTypedArray = {
 	i32: Int32Array,
 };
 
-const ShapeTypedArray = Uint32Array;
-const StridesTypedArray = Uint32Array;
+export const ShapeTypedArray = Uint32Array;
+export const StridesTypedArray = Uint32Array;
 
 /**
  * Gives total length (multiply shape across)
