@@ -467,30 +467,6 @@ gpuBuffer=
 [[1, 2, 3]]
 ```
 
-## Functional Tensor Operations
-
-Every tensor operation (above in [tensor-operations](#tensor-operations)) has a functional definition where you allocate the output (or choose to do the op in-place)
-
-```js
-const a = await Tensor.tensor([1,2,3], [3,1]);
-const aSum = await a.sum(0);
-```
-
-Is perfectly fine, but the a.sum() function allocates the shape of the output and returns it to you. 
-
-Instead you could explicitly use the functional call `Tensor.<op name>(destination,...args)`;
-
-```js
-const aSum = await Tensor.empty([1,1]); // destination/result empty allocation
-await Tensor.sum(aSum, a, 0); // compute sum down a and store in aSum
-```
-
-This function API also allows for in place operations. Like squaring
-
-```js
-await Tensor.pow(a, a, 2); // compute a^2 then override a with result 
-```
-
 ### cpuBuffer()
 
 Asks the GPU to return the data to the CPU. Returns as a JS array given a tensor `a` in this case;
@@ -642,6 +618,30 @@ dtype='f32', shape=[2,2], strides=[2,1],
 gpuBuffer=
 [[7, 14],
  [21, 28]]
+```
+
+## Functional Tensor Operations
+
+Every tensor operation (above in [tensor-operations](#tensor-operations)) has a functional definition where you allocate the output (or choose to do the op in-place)
+
+```js
+const a = await Tensor.tensor([1,2,3], [3,1]);
+const aSum = await a.sum(0);
+```
+
+Is perfectly fine, but the a.sum() function allocates the shape of the output and returns it to you. 
+
+Instead you could explicitly use the functional call `Tensor.<op name>(destination,...args)`;
+
+```js
+const aSum = await Tensor.empty([1,1]); // destination/result empty allocation
+await Tensor.sum(aSum, a, 0); // compute sum down a and store in aSum
+```
+
+This function API also allows for in place operations. Like squaring
+
+```js
+await Tensor.pow(a, a, 2); // compute a^2 then override a with result 
 ```
 
 
