@@ -644,6 +644,34 @@ This function API also allows for in place operations. Like squaring
 await Tensor.pow(a, a, 2); // compute a^2 then override a with result 
 ```
 
+## Lazy evaluation and Auto Gradients
+
+TODO (WORK IN PROGRESS, JUST TESTING OUT API IDEAS HERE)
+
+Don't want to put awaits in front of everything? Use the lazy API instead which includes a gradient computer.
+
+Nothing is computed until `.lazyEvaluate()` is called! The only exception is that data is immediatly loaded into the GPU.
+
+```js
+const a = Lazy.tensor(await Tensor.tensor([1,2,3,4], [4,1]));
+const b = Lazy.tensor(await Tensor.tensor([0,1,2,3], [4,1]));
+const c = b.add(a);
+const result = a.add(c).sub(a).mul(c);
+
+await result.lazyEvaluate(); // now result and the variable c will have computed results
+```
+
+Since we construct a graph in the backend, you get gradient computation for free!
+
+```js
+const a = await LazyTensor.tensor([1,2,3,4], [4,1]);
+const b = await LazyTensor.tensor([0,1,2,3], [4,1]);
+const c = b.add(a);
+const result = a.add(c).sub(a).mul(c);
+
+await result.lazyEvaluate(/*backward=*/true);
+await a.grad.print(); // dresult/da
+```
 
 ## Dev
 

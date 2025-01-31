@@ -3,14 +3,13 @@ import { Tensor } from "./tensorscript";
 main();
 
 async function main() {
-	if (!navigator.gpu) throw Error("No WebGPU GPU on this machine!");
 	const adapter = await navigator.gpu.requestAdapter();
-	if (!adapter) throw Error("Adaptor not found!");
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
+	await sumGradExample();
 	// await linearRegressionExample();
-	await expandExample();
+	// await expandExample();
 	// await unsqueezeExample();
 	// await copyExample();
 	// await divExample();
@@ -23,6 +22,17 @@ async function main() {
 	// await sumExample();
 	// await inverseIndexing();
 	// await inverseIndexing31();
+}
+
+async function sumGradExample() {
+	const a = await Tensor.tensor([1, 2, 3, 4], [4, 1]);
+	const summed = await a.sum(0);
+	await summed.print();
+
+	// trackGradient(a) -> GradTensor(op=None);
+	// summed = a.sum() -> GradTensor(op=Sum, opArgs=[a])
+	// summed.realize();
+	// forward(), then backward() all at once
 }
 
 async function divExample() {
