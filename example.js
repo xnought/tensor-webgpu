@@ -1,4 +1,5 @@
 import { Tensor } from "./tensorscript";
+import { LazyTensor } from "./lazy";
 
 main();
 
@@ -25,14 +26,10 @@ async function main() {
 }
 
 async function sumGradExample() {
-	const a = await Tensor.tensor([1, 2, 3, 4], [4, 1]);
-	const summed = await a.sum(0);
-	await summed.print();
-
-	// trackGradient(a) -> GradTensor(op=None);
-	// summed = a.sum() -> GradTensor(op=Sum, opArgs=[a])
-	// summed.realize();
-	// forward(), then backward() all at once
+	const a = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const b = a.add(a).sum(0);
+	await b.lazyEvaluate();
+	await b.print();
 }
 
 async function divExample() {
