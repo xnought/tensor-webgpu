@@ -116,7 +116,9 @@ export class LazyTensor {
 		// this.grad += newGrad;
 		const thisGrad = await this.grad.add(newGrad);
 		this.grad.free();
+		// newGrad.free(); // if I'm getting issues free that
 		this.grad = thisGrad;
+		// await Tensor.add(this.grad, this.grad, newGrad); // currently fails due to bug in my webgpu code FIX AT SOME POINT!
 	}
 
 	async backward() {

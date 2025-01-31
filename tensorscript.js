@@ -709,8 +709,10 @@ export class Tensor {
 }
 
 /**
- * BELOW IS COPIED FROM MYSELF
- * https://github.com/xnought/webgpu-compute
+ * AIM TO MIMIC PyCUDA https://homepages.math.uic.edu/~jan/mcs572f16/mcs572notes/lec29.html
+ * Tooks tons of code from https://developer.chrome.com/docs/capabilities/web-apis/gpu-compute
+ *
+ * SEE DOCUMENTATION AT https://github.com/xnought/webgpu-compute
  */
 
 export function assert(truth, msg = "ASSERT FAILED") {
@@ -728,22 +730,27 @@ export class GPU {
 		assert(device, "device exists");
 		return new GPU(device);
 	}
+	async syncDevice() {
+		await this.device.queue.onSubmittedWorkDone();
+	}
+
 	/**
 	 * @param {number} bytes
 	 * @param {GPUBufferUsage} usage
-	 * @returns {GPUBuffer}
+	 * @returns {Promise<GPUBuffer>}
 	 */
-	memAlloc(bytes, usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC) {
+	async memAlloc(bytes, usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC) {
 		assert(bytes > 0);
 		const buffer = this.device.createBuffer({
 			size: bytes,
 			usage,
 		});
+		await this.syncDevice();
 		return buffer;
 	}
 	async memcpyHostToDevice(gpuBuffer, cpuBuffer) {
 		this.device.queue.writeBuffer(gpuBuffer, 0, cpuBuffer, 0);
-		await this.device.queue.onSubmittedWorkDone();
+		await this.syncDevice();
 	}
 	async memcpyDeviceToHost(hostBuffer, deviceBuffer) {
 		hostBuffer.set(await this.mapGPUToCPU(deviceBuffer, hostBuffer.constructor));
@@ -761,11 +768,11 @@ export class GPU {
 
 	// this function may or may not leak. idk
 	async mapGPUToCPU(gpuSrcBuffer, TypedArray = Float32Array) {
-		const tempDstBuffer = this.memAlloc(gpuSrcBuffer.size, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
+		const tempDstBuffer = await this.memAlloc(gpuSrcBuffer.size, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
 		const copyEncoder = this.device.createCommandEncoder();
 		copyEncoder.copyBufferToBuffer(gpuSrcBuffer, 0, tempDstBuffer, 0, gpuSrcBuffer.size);
 		this.device.queue.submit([copyEncoder.finish()]);
-		await this.device.queue.onSubmittedWorkDone();
+		await this.syncDevice();
 		await tempDstBuffer.mapAsync(GPUMapMode.READ);
 
 		const result = new TypedArray(tempDstBuffer.getMappedRange());
@@ -808,7 +815,7 @@ export class SourceModule {
 			passEncoder.end();
 
 			this.device.queue.submit([commandEncoder.finish()]);
-			await this.device.queue.onSubmittedWorkDone();
+			await this.gpu.syncDevice();
 		};
 	}
 	getFunctionOnlyBuffers(name) {

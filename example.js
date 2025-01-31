@@ -29,13 +29,11 @@ async function main() {
 async function sumGradExample() {
 	const a = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	const b = LazyTensor.tensor(await Tensor.fill(1, [4, 1]));
-	const c = a.add(b); // nothing computed yet, just a definition
+	const c = a.add(b).sum(0);
 
 	await c.forward(); // now compute everything (the c = a + b)
-	await c.backward(); // backprop
-
-	console.log("a+b=c");
 	await c.print();
+	await c.backward(); // backprop
 
 	console.log("a.grad");
 	await a.grad.print();
