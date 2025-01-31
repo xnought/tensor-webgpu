@@ -8,7 +8,8 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
-	await numberBinaryOpExample();
+	await scalarForwardExample();
+	// await numberBinaryOpExample();
 	// await expandExample2();
 	// await sumGradExample();
 	// await linearRegressionExample();
@@ -27,17 +28,32 @@ async function main() {
 	// await inverseIndexing31();
 }
 
+async function scalarForwardExample() {
+	const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	await y.print();
+
+	const square = y.square();
+	const summed = square.sum(0);
+
+	await summed.forward();
+
+	await square.print();
+	await summed.print();
+
+	await summed.backward();
+	await y.grad.print();
+}
 async function sumGradExample() {
-	// const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
-	// const yhat = LazyTensor.tensor(await Tensor.tensor([1, 0, 3, 1], [4, 1]));
-	// const loss = y.sub(yhat);
-	// await loss.forward(); // now compute everything (the c = a + b)
-	// await c.print()
-	// await c.backward(); // backprop
-	// console.log("a.grad");
-	// await a.grad.print();
-	// console.log("b.grad");
-	// await b.grad.print();
+	const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const yhat = LazyTensor.tensor(await Tensor.tensor([1, 0, 3, 1], [4, 1]));
+	const loss = y.add(yhat);
+	await loss.forward(); // now compute everything (the c = a + b)
+	await c.print();
+	await c.backward(); // backprop
+	console.log("a.grad");
+	await a.grad.print();
+	console.log("b.grad");
+	await b.grad.print();
 }
 
 async function divExample() {
