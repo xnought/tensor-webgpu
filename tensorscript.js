@@ -237,13 +237,15 @@ export class Tensor {
 	 * @param {GPUBuffer} gpuBuffer
 	 * @param {Shape} shape
 	 * @param {DType} dtype
+	 * @param {boolean} owned
 	 */
-	constructor(gpuBuffer, shape, strides, dtype) {
+	constructor(gpuBuffer, shape, strides, dtype, owned = true) {
 		assert(gpu, "GPU must exist. Tensor.setDevice() once!");
 		this.gpuBuffer = gpuBuffer;
 		this.shape = ShapeTypedArray.from(shape);
 		this.strides = StridesTypedArray.from(strides);
 		this.dtype = dtype;
+		this.owned = owned;
 	}
 
 	get DTypedArray() {
@@ -353,7 +355,7 @@ export class Tensor {
 		multiSwapItems(swappedShape, swaps);
 		multiSwapItems(swappedStrides, swaps);
 
-		return new Tensor(this.gpuBuffer, swappedShape, swappedStrides, this.dtype);
+		return new Tensor(this.gpuBuffer, swappedShape, swappedStrides, this.dtype, false);
 	}
 
 	/**
@@ -366,7 +368,7 @@ export class Tensor {
 		const newShape = insertTypedArray(this.shape, dim, 1);
 		const newStride = this.shape.slice(dim).reduce((prev, cur) => prev * cur, 1); // multiply the shape to the right of dim
 		const newStrides = insertTypedArray(this.strides, dim, newStride);
-		return new Tensor(this.gpuBuffer, newShape, newStrides, this.dtype);
+		return new Tensor(this.gpuBuffer, newShape, newStrides, this.dtype, false);
 	}
 
 	/**
@@ -384,7 +386,7 @@ export class Tensor {
 		newShape[dim] = expandTo;
 		newStrides[dim] = 0;
 
-		return new Tensor(this.gpuBuffer, newShape, newStrides, this.dtype);
+		return new Tensor(this.gpuBuffer, newShape, newStrides, this.dtype, false);
 	}
 
 	/**
@@ -554,8 +556,11 @@ export class Tensor {
 		await elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
 	}
 	async _elementWiseBinaryOp(other, BinaryOpStaticMethod) {
+		let allocatedOther = false;
+		if (typeof other === "number") other = await Tensor.tensor([other], this.shape, this.dtype);
 		const dst = await Tensor.empty(other.shape, other.dtype);
 		await BinaryOpStaticMethod(dst, this, other);
+		if (allocatedOther) other.free();
 		return dst;
 	}
 
