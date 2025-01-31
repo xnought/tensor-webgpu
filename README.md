@@ -669,7 +669,7 @@ const b = await LazyTensor.tensor([0,1,2,3], [4,1]);
 const c = b.add(a);
 const result = a.add(c).sub(a).mul(c);
 
-await result.lazyEvaluate(/*backward=*/true);
+await result.lazyEvaluate(/*grad=*/true);
 await a.grad.print(); // dresult/da
 ```
 
