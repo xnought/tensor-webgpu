@@ -388,6 +388,20 @@ export class Tensor {
 	}
 
 	/**
+	 * Expands to fill the outer shape. Does not add additional dimensions!
+	 * @param {Shape} shape
+	 */
+	expand(shape) {
+		assert(shape.length === this.shape.length, "Must have same number of dims");
+		let t = this;
+		for (let dim = 0; dim < shape.length; dim++) {
+			const expandTo = shape[dim];
+			if (expandTo > this.shape[dim]) t = t.expandTo(expandTo, dim);
+		}
+		return t;
+	}
+
+	/**
 	 * Applies operation elementwise
 	 * @param {Tensor} dst
 	 * @param {Tensor} src
