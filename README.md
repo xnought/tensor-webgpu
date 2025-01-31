@@ -641,11 +641,7 @@ const aSum = await Tensor.empty([1,1]); // destination/result empty allocation
 await Tensor.sum(aSum, a, 0); // compute sum down a and store in aSum
 ```
 
-This function API also allows for in place operations. Like squaring
-
-```js
-await Tensor.pow(a, a, 2); // compute a^2 then override a with result 
-```
+For now the destination cannot be also the same tensor in another argument. Getting webgpu bind errors. Will fix Soon!
 
 ## Lazy evaluation and Auto Gradients
 
