@@ -16,8 +16,11 @@ All computation done on the GPU!
 - [x] matmul
 - [x] contiguous
 - [x] unsqueeze
-- [x] expand
-- [ ] Auto differentiation
+- [x] expandTo
+- [ ] Lazy evaluation and backprop
+  - [x] backwards add
+  - [ ] backwards sum 
+  - [ ] backwards ... 
 - [ ] Linear Regression
 - [ ] MLP Example
 
