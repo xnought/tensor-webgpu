@@ -301,7 +301,7 @@ async function linearRegressionExample() {
 		.map((_, i) => i);
 	const x = LazyTensor.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
 	const y = LazyTensor.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
-	const w = LazyTensor.tensor(await Tensor.tensor([0.5], [1, 1]));
+	const w = LazyTensor.tensor(await Tensor.tensor([0.5], [1, 1]), /*requiresGrad=*/ true);
 	const tunableParams = [w];
 
 	const iterations = 100;
@@ -328,6 +328,8 @@ async function linearRegressionExample() {
 	await w.print();
 	console.log("LOSS");
 	await loss.print();
+
+	loss.freeGraph();
 }
 
 async function unsqueezeExample() {
