@@ -72,13 +72,13 @@ export class Lazy {
 	 * @param {OpCode} OP_CODE
 	 * @param {Lazy[]} childArgs
 	 * @param {unknown[]} opArgs
-	 * @param {Tensor | undefined} result
+	 * @param {Tensor | undefined} tensor
 	 */
-	constructor(OP_CODE, childArgs, opArgs = [], result = undefined, requiresGrad = false) {
+	constructor(OP_CODE, childArgs, opArgs = [], tensor = undefined, requiresGrad = false) {
 		this.childArgs = childArgs;
 		this.opArgs = opArgs;
 		this.OP_CODE = OP_CODE;
-		this.result = result;
+		this.tensor = tensor;
 		this.grad = undefined;
 		this.requiresGrad = requiresGrad; // matters when we check leaf
 	}
@@ -136,7 +136,7 @@ export class Lazy {
 	 * @returns {Promise<Tensor>}
 	 */
 	async forward() {
-		if (this.OP_CODE === TENSOR_OP) return this.result;
+		if (this.OP_CODE === TENSOR_OP) return this.tensor;
 
 		// Evaluate each argument
 		let tensorArgs = new Array(this.childArgs.length);
@@ -154,10 +154,10 @@ export class Lazy {
 
 		// use the arguments to evaluate this function
 		const op = this._getOpFunc();
-		if (this.result) this.result.free(); // free whatever memory was in the result from before
-		this.result = await op(tensorArgs, ...this.opArgs);
+		if (this.tensor) this.tensor.free(); // free whatever memory was in the result from before
+		this.tensor = await op(tensorArgs, ...this.opArgs);
 
-		return this.result;
+		return this.tensor;
 	}
 
 	/**
@@ -166,24 +166,24 @@ export class Lazy {
 	 */
 	async _accumulateGradient(newGrad) {
 		if (this.grad === undefined) {
-			this.grad = await Tensor.fill(0, this.result.shape, this.result.dtype);
+			this.grad = await Tensor.fill(0, this.tensor.shape, this.tensor.dtype);
 		}
 		this.grad.addInplace(newGrad); // this.grad += newGrad
 	}
 
 	async backward() {
-		assert(this.result, "result needs to be evaluated");
+		assert(this.tensor, "result needs to be evaluated");
 
 		/** @type {(lazyTensorOp: Lazy) => Promise<void>} */
 		const _recurBackward = async (lazyTensorResult) => {
-			assert(lazyTensorResult.result, "result needs to be evaluated");
+			assert(lazyTensorResult.tensor, "result needs to be evaluated");
 
 			// this function computes grads for children, so if no children, no more to compute!
 			if (lazyTensorResult.childArgs.length === 0) return;
 
 			// compute gradients of result with respect to each child
 			const backwardOp = lazyTensorResult._getBackwardsOpFunc();
-			const childTensors = lazyTensorResult.childArgs.map((d) => (typeof d === "number" ? d : d.result));
+			const childTensors = lazyTensorResult.childArgs.map((d) => (typeof d === "number" ? d : d.tensor));
 			const childGradsFuncs = backwardOp(childTensors, lazyTensorResult.grad, ...lazyTensorResult.opArgs);
 
 			// backpropagate through children
@@ -200,7 +200,7 @@ export class Lazy {
 			}
 		};
 
-		const gradItself = await Tensor.fill(1, this.result.shape, this.result.dtype);
+		const gradItself = await Tensor.fill(1, this.tensor.shape, this.tensor.dtype);
 		await this._accumulateGradient(gradItself);
 		await _recurBackward(this);
 	}
@@ -218,9 +218,9 @@ export class Lazy {
 			this.grad.free();
 			this.grad = undefined;
 		}
-		if (this.result) {
-			this.result.free();
-			this.result = undefined;
+		if (this.tensor) {
+			this.tensor.free();
+			this.tensor = undefined;
 		}
 		for (let i = 0; i < this.childArgs.length; i++) {
 			if (typeof this.childArgs[i] !== "number") this.childArgs[i].freeGraph();
@@ -228,8 +228,8 @@ export class Lazy {
 	}
 
 	async print(...args) {
-		assert(this.result, "result must be populated to print");
-		await this.result.print(...args);
+		assert(this.tensor, "result must be populated to print");
+		await this.tensor.print(...args);
 	}
 }
 
@@ -245,10 +245,10 @@ export class OptimSGD {
 	}
 	async update() {
 		for (const p of this.params) {
-			assert(p.grad && p.result, "Can update data with gradient.");
+			assert(p.grad && p.tensor, "Can update data with gradient.");
 
 			const scaledGrad = await p.grad.mul(this.lr);
-			await p.result.subInplace(scaledGrad);
+			await p.tensor.subInplace(scaledGrad);
 			scaledGrad.free();
 		}
 	}
