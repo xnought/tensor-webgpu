@@ -22,15 +22,14 @@ All computation done on the GPU!
   - [x] Without intercept
   - [ ] With intercept
 - [x] Don't compute gradients for leaves for faster
-- [ ] tensor.set method for batches
+- [x] tensor.set method for batches
+- [ ] log and exp (then can do softmax and cross-entropy)
+- [ ] relu
 - [ ] MLP Example
-  - [ ] Implement ReLU Op
-  - [ ] Implement Softmax Op
-  - [ ] Implement argmax in Tensor for prediction
-  - [ ] Implement Categorical Cross Entropy Loss
-  - [ ] Load MNIST into the browser
-  - [ ] Batching Scheme load into GPU
-  - [ ] Train then have interactive example predicting the digit
+  - [ ] Load MNIST into the browser on CPU
+  - [ ] Load batches into GPU and train for iterations
+  - [ ] Switch to svelte vite and visualize loss in the browser
+  - [ ] Once done training, have an interactive canvas that takes drawing and outputs probabilities
 
 ## Getting Started
 
