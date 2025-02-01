@@ -67,10 +67,10 @@ const BACKWARDS_BINARY_OPS = {
 	},
 };
 
-export class LazyTensor {
+export class Graph {
 	/**
 	 * @param {OpCode} OP_CODE
-	 * @param {LazyTensor[]} childArgs
+	 * @param {Graph[]} childArgs
 	 * @param {unknown[]} opArgs
 	 * @param {Tensor | undefined} result
 	 */
@@ -83,11 +83,11 @@ export class LazyTensor {
 		this.requiresGrad = requiresGrad; // matters when we check leaf
 	}
 	static tensor(t, requiresGrad = false) {
-		return new LazyTensor(TENSOR_OP, [], [], t, requiresGrad);
+		return new Graph(TENSOR_OP, [], [], t, requiresGrad);
 	}
 
 	_unaryOp(OP_CODE, ...opArgs) {
-		return new LazyTensor(OP_CODE, [this], opArgs, undefined, this.requiresGrad);
+		return new Graph(OP_CODE, [this], opArgs, undefined, this.requiresGrad);
 	}
 	sum(dim) {
 		return this._unaryOp(SUM_OP, dim);
@@ -97,7 +97,7 @@ export class LazyTensor {
 	}
 
 	_binaryOp(other, OP_CODE, ...opArgs) {
-		return new LazyTensor(OP_CODE, [this, other], opArgs, undefined, this.requiresGrad || other.requiresGrad);
+		return new Graph(OP_CODE, [this, other], opArgs, undefined, this.requiresGrad || other.requiresGrad);
 	}
 	add(other) {
 		return this._binaryOp(other, ADD_OP);
@@ -174,7 +174,7 @@ export class LazyTensor {
 	async backward() {
 		assert(this.result, "result needs to be evaluated");
 
-		/** @type {(lazyTensorOp: LazyTensor) => Promise<void>} */
+		/** @type {(lazyTensorOp: Graph) => Promise<void>} */
 		const _recurBackward = async (lazyTensorResult) => {
 			assert(lazyTensorResult.result, "result needs to be evaluated");
 
@@ -235,7 +235,7 @@ export class LazyTensor {
 
 /**
  * param -= lr*param.grad
- * @param {LazyTensor[]} params
+ * @param {Graph[]} params
  * @param {number} lr
  */
 export async function updateSGD(params, lr = 1e-3) {

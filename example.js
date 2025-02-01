@@ -1,5 +1,5 @@
 import { Tensor } from "./tensorscript";
-import { LazyTensor, updateSGD } from "./lazy";
+import { Graph, updateSGD } from "./lazy";
 
 main();
 
@@ -30,7 +30,7 @@ async function main() {
 }
 
 async function mulBackwardExample() {
-	const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const y = Graph.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	await y.print();
 
 	const mean = y.sum(0).mul(1 / 4);
@@ -42,7 +42,7 @@ async function mulBackwardExample() {
 	await y.grad.print();
 }
 async function scalarForwardExample() {
-	const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const y = Graph.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	await y.print();
 
 	const square = y.square();
@@ -57,8 +57,8 @@ async function scalarForwardExample() {
 	await y.grad.print();
 }
 async function sumGradExample() {
-	const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
-	const yhat = LazyTensor.tensor(await Tensor.tensor([1, 0, 3, 1], [4, 1]));
+	const y = Graph.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const yhat = Graph.tensor(await Tensor.tensor([1, 0, 3, 1], [4, 1]));
 	const loss = y.add(yhat);
 	await loss.forward(); // now compute everything (the c = a + b)
 	await c.print();
@@ -295,18 +295,19 @@ async function copyExample() {
 }
 
 async function linearRegressionExample() {
-	const n = 100;
+	const n = 1_000;
 	const line = Array(n)
 		.fill(0)
 		.map((_, i) => i);
-	const x = LazyTensor.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
-	const y = LazyTensor.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
-	const w = LazyTensor.tensor(await Tensor.tensor([0.5], [1, 1]), /*requiresGrad=*/ true);
+
+	const batchX = await (await Tensor.tensor(line, [n, 1])).mul(1 / n);
+	const batchY = await (await Tensor.tensor(line, [n, 1])).mul(1 / n);
+
+	// Graph model functional spec
+	const x = Graph.tensor(batchX);
+	const y = Graph.tensor(batchY);
+	const w = Graph.tensor(await Tensor.tensor([0], [1, 1]), /*requiresGrad=*/ true);
 	const tunableParams = [w];
-
-	const iterations = 100;
-	const lr = 0.1;
-
 	const yhat = x.matmul(w);
 	const loss = yhat
 		.sub(y)
@@ -314,15 +315,16 @@ async function linearRegressionExample() {
 		.sum(0)
 		.mul(1 / n); // mse loss
 
-	console.time("iteration");
+	const iterations = 100;
+	const lr = 0.1;
 	for (let i = 0; i < iterations; i++) {
-		console.log("ITER", i);
+		console.time("iteration" + i);
 		await loss.forward();
 		loss.zeroGrad(); // make sure we accumulate grads from 0
 		await loss.backward();
 		await updateSGD(tunableParams, lr);
+		console.timeEnd("iteration" + i);
 	}
-	console.timeEnd("iteration");
 
 	console.log("W");
 	await w.print();
