@@ -8,11 +8,12 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
-	await scalarForwardExample();
+	// await mulBackwardExample();
+	// await scalarForwardExample();
 	// await numberBinaryOpExample();
 	// await expandExample2();
 	// await sumGradExample();
-	// await linearRegressionExample();
+	await linearRegressionExample();
 	// await expandExample();
 	// await unsqueezeExample();
 	// await copyExample();
@@ -28,6 +29,18 @@ async function main() {
 	// await inverseIndexing31();
 }
 
+async function mulBackwardExample() {
+	const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	await y.print();
+
+	const mean = y.sum(0).mul(1 / 4);
+
+	await mean.forward();
+	await mean.print();
+
+	await mean.backward();
+	await y.grad.print();
+}
 async function scalarForwardExample() {
 	const y = LazyTensor.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	await y.print();
@@ -286,27 +299,23 @@ async function linearRegressionExample() {
 	const line = Array(n)
 		.fill(0)
 		.map((_, i) => i);
-	const x = await Tensor.tensor(line, [n, 1]);
-	const y = await Tensor.tensor(line, [n, 1]);
+	const x = LazyTensor.tensor(await Tensor.tensor(line, [n, 1]));
+	const y = LazyTensor.tensor(await Tensor.tensor(line, [n, 1]));
+	const w = LazyTensor.tensor(await Tensor.tensor([0], [1, 1]));
 
-	const w = await Tensor.tensor([-1], [1, 1]);
-	const b = await Tensor.tensor([1.2], [1, 1]);
+	const yhat = x.matmul(w);
+	const loss = yhat
+		.sub(y)
+		.square()
+		.sum(0)
+		.mul(1 / n); // mse loss
 
-	const yhat = await (await x.matmul(w)).add(b.expandTo(n, 0)); // (n, 1)
-	const loss = await (await yhat.sub(y)).sum(0);
-
-	console.log("x");
-	await x.print();
-	console.log("y");
-	await y.print();
-	console.log("w");
-	await w.print();
-	console.log("b");
-	await b.print();
-	console.log("yhat");
-	await yhat.print();
-	console.log("loss");
+	await loss.forward();
 	await loss.print();
+
+	loss.resetGrads();
+	await loss.backward();
+	await w.grad.print();
 }
 
 async function unsqueezeExample() {

@@ -1,14 +1,15 @@
 import { assert, Tensor } from "./tensorscript";
 
-// assign each op code an integer (make sure to increment numOps if you add another)
-const NUM_OPS = 6;
-const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
-
 /** @typedef {number} OpCode */
 /** @typedef {(tensors: Tensor[], ...args: unknown[]) => Promise<Tensor>} OpFunc */
 /** @typedef {(tensors: Tensor[], resultGrad: Tensor, ...args: unknown[]) => Promise<Tensor[]>} BackwardsOpFunc */
 /** @typedef {Record<OpCode, OpFunc>} OpsMap */
 /** @typedef {Record<OpCode, BackwardsOpFunc>} BackwardsOpsMap */
+
+// assign each op code an integer (make sure to increment numOps if you add another)
+const NUM_OPS = 7;
+/** @type {OpCode[]} */
+const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
 
 /** @type {OpsMap} */
 const UNARY_OPS = {
@@ -32,6 +33,8 @@ const BACKWARDS_UNARY_OPS = {
 const BINARY_OPS = {
 	[ADD_OP]: ([a, b]) => a.add(b),
 	[SUB_OP]: ([a, b]) => a.sub(b),
+	[MUL_OP]: ([a, b]) => a.mul(b),
+	[MATMUL_OP]: ([a, b]) => a.matmul(b),
 };
 
 // the second argument (b) may or may not be a number or tensor in elementwise operations (add, sub, pow)
@@ -45,6 +48,16 @@ const BACKWARDS_BINARY_OPS = {
 	[SUB_OP]: async ([a, b], resultGrad) => {
 		const drda = resultGrad;
 		const drdb = await resultGrad.mul(-1);
+		return [drda, drdb];
+	},
+	[MUL_OP]: async ([a, b], resultGrad) => {
+		const drda = await resultGrad.mul(b);
+		const drdb = await resultGrad.mul(a);
+		return [drda, drdb];
+	},
+	[MATMUL_OP]: async ([a, b], resultGrad) => {
+		const drda = await resultGrad.matmul(b.T);
+		const drdb = await a.T.matmul(resultGrad);
 		return [drda, drdb];
 	},
 };
@@ -85,6 +98,12 @@ export class LazyTensor {
 	}
 	sub(other) {
 		return this._binaryOp(other, SUB_OP);
+	}
+	mul(other) {
+		return this._binaryOp(other, MUL_OP);
+	}
+	matmul(other) {
+		return this._binaryOp(other, MATMUL_OP);
 	}
 
 	_getOpFunc() {
@@ -129,6 +148,7 @@ export class LazyTensor {
 
 		// use the arguments to evaluate this function
 		const op = this._getOpFunc();
+		if (this.result) this.result.free(); // free whatever memory was in the result from before
 		this.result = await op(tensorArgs, ...this.opArgs);
 
 		return this.result;
@@ -162,7 +182,7 @@ export class LazyTensor {
 
 			// compute gradients of result with respect to each child
 			const backwardOp = lazyTensorResult._getBackwardsOpFunc();
-			const childTensors = lazyTensorResult.childArgs.map((d) => d.result);
+			const childTensors = lazyTensorResult.childArgs.map((d) => (typeof d === "number" ? d : d.result));
 			const childGrads = await backwardOp(childTensors, lazyTensorResult.grad, ...lazyTensorResult.opArgs);
 
 			// backpropagate accumulate gradients
@@ -177,6 +197,17 @@ export class LazyTensor {
 		const gradItself = await Tensor.fill(1, this.result.shape, this.result.dtype);
 		await this._accumulateGradient(gradItself);
 		await _recurBackward(this);
+	}
+
+	resetGrads() {
+		if (!this.grad) return;
+		this.grad.free();
+		this.grad = undefined;
+		// in _accumulateGradient we set undefined gradients to 0s in the backward pass, so this is all we have to do for now
+
+		for (let i = 0; i < this.childArgs.length; i++) {
+			if (typeof this.childArgs[i] !== "number") this.childArgs[i].resetGrads();
+		}
 	}
 
 	async print(...args) {

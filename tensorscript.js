@@ -557,7 +557,10 @@ export class Tensor {
 	}
 	async _elementWiseBinaryOp(other, BinaryOpStaticMethod) {
 		let allocatedOther = false;
-		if (typeof other === "number") other = await Tensor.tensor([other], this.shape, this.dtype);
+		if (typeof other === "number") {
+			other = await Tensor.tensor([other], this.shape, this.dtype);
+			allocatedOther = true;
+		}
 		const dst = await Tensor.empty(other.shape, other.dtype);
 		await BinaryOpStaticMethod(dst, this, other);
 		if (allocatedOther) other.free();
@@ -703,8 +706,9 @@ export class Tensor {
 
 	free() {
 		this.assertNotFreed(); // don't free twice
-
-		gpu.free(this.gpuBuffer);
+		if (this.owned) {
+			gpu.free(this.gpuBuffer);
+		}
 		this.gpuBuffer = undefined;
 	}
 
