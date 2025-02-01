@@ -17,12 +17,18 @@ All computation done on the GPU!
 - [x] contiguous
 - [x] unsqueeze
 - [x] expandTo
-- [ ] Lazy evaluation and backprop
-  - [x] backwards add
-  - [ ] backwards sum 
-  - [ ] backwards ... 
+- [x] Lazy evaluation and backprop (partially done)
 - [ ] Linear Regression
+  - [x] Without intercept
+  - [ ] With intercept
 - [ ] MLP Example
+  - [ ] Implement ReLU Op
+  - [ ] Implement Softmax Op
+  - [ ] Implement argmax in Tensor for prediction
+  - [ ] Implement Categorical Cross Entropy Loss
+  - [ ] Load MNIST into the browser
+  - [ ] Batching Scheme load into GPU
+  - [ ] Train then have interactive example predicting the digit
 
 ## Getting Started
 
