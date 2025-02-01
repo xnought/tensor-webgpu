@@ -21,7 +21,7 @@ All computation done on the GPU!
 - [ ] Linear Regression
   - [x] Without intercept
   - [ ] With intercept
-- [ ] Don't compute gradients for leaves for faster
+- [x] Don't compute gradients for leaves for faster
 - [ ] MLP Example
   - [ ] Implement ReLU Op
   - [ ] Implement Softmax Op
