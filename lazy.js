@@ -23,7 +23,9 @@ const BACKWARDS_UNARY_OPS = {
 		return [drda];
 	},
 	[SQUARE_OP]: async ([a], resultGrad) => {
-		const drda = await (await a.mul(2)).mul(resultGrad);
+		const twoA = await a.mul(2);
+		const drda = await resultGrad.mul(twoA);
+		twoA.free();
 		return [drda];
 	},
 };
@@ -130,7 +132,7 @@ export class LazyTensor {
 	 * @returns {Promise<Tensor>}
 	 */
 	async forward() {
-		if (this.result) return this.result;
+		if (this.OP_CODE === TENSOR_OP) return this.result;
 
 		// Evaluate each argument
 		let tensorArgs = new Array(this.childArgs.length);
@@ -210,8 +212,40 @@ export class LazyTensor {
 		}
 	}
 
+	freeGraph() {
+		if (this.grad) {
+			this.grad.free();
+			this.grad = undefined;
+		}
+		if (this.result) {
+			this.result.free();
+			this.result = undefined;
+		}
+		for (let i = 0; i < this.childArgs.length; i++) {
+			if (typeof this.childArgs[i] !== "number") this.childArgs[i].freeGraph();
+		}
+	}
+
 	async print(...args) {
 		assert(this.result, "result must be populated to print");
 		await this.result.print(...args);
+	}
+}
+
+/**
+ * param -= lr*param.grad
+ * @param {LazyTensor[]} params
+ * @param {number} lr
+ */
+export async function updateSGD(params, lr = 1e-3) {
+	for (const p of params) {
+		assert(p.grad && p.result);
+		const scaledGrad = await p.grad.mul(lr);
+		const prevData = p.result; // TODO: update in place!
+		p.result = await prevData.sub(scaledGrad);
+
+		//free intermediate variables and previous data. TODO: update the data in place!
+		scaledGrad.free();
+		prevData.free();
 	}
 }

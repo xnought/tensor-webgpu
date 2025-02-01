@@ -1,5 +1,5 @@
 import { Tensor } from "./tensorscript";
-import { LazyTensor } from "./lazy";
+import { LazyTensor, updateSGD } from "./lazy";
 
 main();
 
@@ -295,13 +295,17 @@ async function copyExample() {
 }
 
 async function linearRegressionExample() {
-	const n = 5;
+	const n = 100;
 	const line = Array(n)
 		.fill(0)
 		.map((_, i) => i);
-	const x = LazyTensor.tensor(await Tensor.tensor(line, [n, 1]));
-	const y = LazyTensor.tensor(await Tensor.tensor(line, [n, 1]));
-	const w = LazyTensor.tensor(await Tensor.tensor([0], [1, 1]));
+	const x = LazyTensor.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
+	const y = LazyTensor.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
+	const w = LazyTensor.tensor(await Tensor.tensor([0.5], [1, 1]));
+	const tunableParams = [w];
+
+	const iterations = 50;
+	const lr = 0.1;
 
 	const yhat = x.matmul(w);
 	const loss = yhat
@@ -310,12 +314,17 @@ async function linearRegressionExample() {
 		.sum(0)
 		.mul(1 / n); // mse loss
 
-	await loss.forward();
+	for (let i = 0; i < iterations; i++) {
+		await loss.forward();
+		loss.resetGrads(); // make sure we accumulate grads from 0
+		await loss.backward();
+		await updateSGD(tunableParams, lr);
+		console.log(i);
+	}
+	console.log("W");
+	await w.print();
+	console.log("LOSS");
 	await loss.print();
-
-	loss.resetGrads();
-	await loss.backward();
-	await w.grad.print();
 }
 
 async function unsqueezeExample() {
