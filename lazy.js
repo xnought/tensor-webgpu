@@ -67,10 +67,10 @@ const BACKWARDS_BINARY_OPS = {
 	},
 };
 
-export class Graph {
+export class Lazy {
 	/**
 	 * @param {OpCode} OP_CODE
-	 * @param {Graph[]} childArgs
+	 * @param {Lazy[]} childArgs
 	 * @param {unknown[]} opArgs
 	 * @param {Tensor | undefined} result
 	 */
@@ -83,11 +83,11 @@ export class Graph {
 		this.requiresGrad = requiresGrad; // matters when we check leaf
 	}
 	static tensor(t, requiresGrad = false) {
-		return new Graph(TENSOR_OP, [], [], t, requiresGrad);
+		return new Lazy(TENSOR_OP, [], [], t, requiresGrad);
 	}
 
 	_unaryOp(OP_CODE, ...opArgs) {
-		return new Graph(OP_CODE, [this], opArgs, undefined, this.requiresGrad);
+		return new Lazy(OP_CODE, [this], opArgs, undefined, this.requiresGrad);
 	}
 	sum(dim) {
 		return this._unaryOp(SUM_OP, dim);
@@ -97,7 +97,7 @@ export class Graph {
 	}
 
 	_binaryOp(other, OP_CODE, ...opArgs) {
-		return new Graph(OP_CODE, [this, other], opArgs, undefined, this.requiresGrad || other.requiresGrad);
+		return new Lazy(OP_CODE, [this, other], opArgs, undefined, this.requiresGrad || other.requiresGrad);
 	}
 	add(other) {
 		return this._binaryOp(other, ADD_OP);
@@ -174,7 +174,7 @@ export class Graph {
 	async backward() {
 		assert(this.result, "result needs to be evaluated");
 
-		/** @type {(lazyTensorOp: Graph) => Promise<void>} */
+		/** @type {(lazyTensorOp: Lazy) => Promise<void>} */
 		const _recurBackward = async (lazyTensorResult) => {
 			assert(lazyTensorResult.result, "result needs to be evaluated");
 
@@ -206,7 +206,7 @@ export class Graph {
 	}
 
 	async zeroGrad() {
-		if (!this.grad) return;
+		if (!this.grad || !this.requiresGrad) return;
 		await this.grad.fillInplace(0);
 		for (let i = 0; i < this.childArgs.length; i++) {
 			if (typeof this.childArgs[i] !== "number") this.childArgs[i].zeroGrad();
@@ -233,16 +233,23 @@ export class Graph {
 	}
 }
 
-/**
- * param -= lr*param.grad
- * @param {Graph[]} params
- * @param {number} lr
- */
-export async function updateSGD(params, lr = 1e-3) {
-	for (const p of params) {
-		assert(p.grad && p.result);
-		const scaledGrad = await p.grad.mul(lr);
-		await p.result.subInplace(scaledGrad);
-		scaledGrad.free();
+export class OptimSGD {
+	/**
+	 * @param {Lazy[]} params
+	 * @param {number} lr learning rate defaults to 1e-3
+	 */
+	constructor(params, lr = 1e-3) {
+		params.forEach((p) => assert(p.requiresGrad, "Parameters must require gradients"));
+		this.params = params;
+		this.lr = lr;
+	}
+	async update() {
+		for (const p of this.params) {
+			assert(p.grad && p.result, "Can update data with gradient.");
+
+			const scaledGrad = await p.grad.mul(this.lr);
+			await p.result.subInplace(scaledGrad);
+			scaledGrad.free();
+		}
 	}
 }

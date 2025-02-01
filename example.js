@@ -1,5 +1,5 @@
 import { Tensor } from "./tensorscript";
-import { Graph, updateSGD } from "./lazy";
+import { Lazy, OptimSGD } from "./lazy";
 
 main();
 
@@ -30,7 +30,7 @@ async function main() {
 }
 
 async function mulBackwardExample() {
-	const y = Graph.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const y = Lazy.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	await y.print();
 
 	const mean = y.sum(0).mul(1 / 4);
@@ -42,7 +42,7 @@ async function mulBackwardExample() {
 	await y.grad.print();
 }
 async function scalarForwardExample() {
-	const y = Graph.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const y = Lazy.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	await y.print();
 
 	const square = y.square();
@@ -57,8 +57,8 @@ async function scalarForwardExample() {
 	await y.grad.print();
 }
 async function sumGradExample() {
-	const y = Graph.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
-	const yhat = Graph.tensor(await Tensor.tensor([1, 0, 3, 1], [4, 1]));
+	const y = Lazy.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const yhat = Lazy.tensor(await Tensor.tensor([1, 0, 3, 1], [4, 1]));
 	const loss = y.add(yhat);
 	await loss.forward(); // now compute everything (the c = a + b)
 	await c.print();
@@ -304,10 +304,9 @@ async function linearRegressionExample() {
 	const batchY = await (await Tensor.tensor(line, [n, 1])).mul(1 / n);
 
 	// Graph model functional spec
-	const x = Graph.tensor(batchX);
-	const y = Graph.tensor(batchY);
-	const w = Graph.tensor(await Tensor.tensor([0], [1, 1]), /*requiresGrad=*/ true);
-	const tunableParams = [w];
+	const x = Lazy.tensor(batchX);
+	const y = Lazy.tensor(batchY);
+	const w = Lazy.tensor(await Tensor.tensor([0], [1, 1]), /*requiresGrad=*/ true);
 	const yhat = x.matmul(w);
 	const loss = yhat
 		.sub(y)
@@ -317,12 +316,13 @@ async function linearRegressionExample() {
 
 	const iterations = 100;
 	const lr = 0.1;
+	const optim = new OptimSGD([w], lr);
 	for (let i = 0; i < iterations; i++) {
 		console.time("iteration" + i);
 		await loss.forward();
-		loss.zeroGrad(); // make sure we accumulate grads from 0
+		await loss.zeroGrad();
 		await loss.backward();
-		await updateSGD(tunableParams, lr);
+		await optim.update();
 		console.timeEnd("iteration" + i);
 	}
 
