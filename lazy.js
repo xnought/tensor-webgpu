@@ -2,7 +2,7 @@ import { assert, Tensor } from "./tensorscript";
 
 /** @typedef {number} OpCode */
 /** @typedef {(tensors: Tensor[], ...args: unknown[]) => Promise<Tensor>} OpFunc */
-/** @typedef {(tensors: Tensor[], requiresGrad: boolean[], resultGrad: Tensor, ...args: unknown[]) => Promise<Tensor[]>} BackwardsOpFunc */
+/** @typedef {(tensors: Tensor[], resultGrad: Tensor, ...args: unknown[]) => (() => Promise<Tensor>)[]} BackwardsOpFunc */
 /** @typedef {Record<OpCode, OpFunc>} OpsMap */
 /** @typedef {Record<OpCode, BackwardsOpFunc>} BackwardsOpsMap */
 
@@ -18,11 +18,11 @@ const UNARY_OPS = {
 };
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_UNARY_OPS = {
-	[SUM_OP]: async ([a], resultGrad) => {
+	[SUM_OP]: ([a], resultGrad) => {
 		const drda = () => resultGrad.expand(a.shape);
 		return [drda];
 	},
-	[SQUARE_OP]: async ([a], resultGrad) => {
+	[SQUARE_OP]: ([a], resultGrad) => {
 		const drda = async () => {
 			const twoA = await a.mul(2);
 			const res = await resultGrad.mul(twoA);
@@ -45,22 +45,22 @@ const BINARY_OPS = {
 // the second argument (b) may or may not be a number or tensor in elementwise operations (add, sub, pow)
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_BINARY_OPS = {
-	[ADD_OP]: async ([a, b], resultGrad) => {
+	[ADD_OP]: ([a, b], resultGrad) => {
 		const drda = () => resultGrad;
 		const drdb = () => resultGrad;
 		return [drda, drdb];
 	},
-	[SUB_OP]: async ([a, b], resultGrad) => {
+	[SUB_OP]: ([a, b], resultGrad) => {
 		const drda = () => resultGrad;
 		const drdb = () => resultGrad.mul(-1);
 		return [drda, drdb];
 	},
-	[MUL_OP]: async ([a, b], resultGrad) => {
+	[MUL_OP]: ([a, b], resultGrad) => {
 		const drda = () => resultGrad.mul(b);
 		const drdb = () => resultGrad.mul(a);
 		return [drda, drdb];
 	},
-	[MATMUL_OP]: async ([a, b], resultGrad) => {
+	[MATMUL_OP]: ([a, b], resultGrad) => {
 		const drda = () => resultGrad.matmul(b.T);
 		const drdb = () => a.T.matmul(resultGrad);
 		return [drda, drdb];
@@ -184,7 +184,7 @@ export class Graph {
 			// compute gradients of result with respect to each child
 			const backwardOp = lazyTensorResult._getBackwardsOpFunc();
 			const childTensors = lazyTensorResult.childArgs.map((d) => (typeof d === "number" ? d : d.result));
-			const childGradsFuncs = await backwardOp(childTensors, lazyTensorResult.grad, ...lazyTensorResult.opArgs);
+			const childGradsFuncs = backwardOp(childTensors, lazyTensorResult.grad, ...lazyTensorResult.opArgs);
 
 			// backpropagate through children
 			for (let i = 0; i < lazyTensorResult.childArgs.length; i++) {

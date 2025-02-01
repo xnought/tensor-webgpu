@@ -22,6 +22,7 @@ All computation done on the GPU!
   - [x] Without intercept
   - [ ] With intercept
 - [x] Don't compute gradients for leaves for faster
+- [ ] tensor.set method for batches
 - [ ] MLP Example
   - [ ] Implement ReLU Op
   - [ ] Implement Softmax Op
