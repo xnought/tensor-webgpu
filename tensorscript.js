@@ -812,7 +812,7 @@ export class GPU {
 		assert(device, "device exists");
 		return new GPU(device);
 	}
-	async syncDevice() {
+	async deviceSynchronize() {
 		await this.device.queue.onSubmittedWorkDone();
 	}
 
@@ -827,12 +827,10 @@ export class GPU {
 			size: bytes,
 			usage,
 		});
-		await this.syncDevice();
 		return buffer;
 	}
 	async memcpyHostToDevice(gpuBuffer, cpuBuffer) {
 		this.device.queue.writeBuffer(gpuBuffer, 0, cpuBuffer, 0);
-		await this.syncDevice();
 	}
 	async memcpyDeviceToHost(hostBuffer, deviceBuffer) {
 		hostBuffer.set(await this.mapGPUToCPU(deviceBuffer, hostBuffer.constructor));
@@ -854,7 +852,6 @@ export class GPU {
 		const copyEncoder = this.device.createCommandEncoder();
 		copyEncoder.copyBufferToBuffer(gpuSrcBuffer, 0, tempDstBuffer, 0, gpuSrcBuffer.size);
 		this.device.queue.submit([copyEncoder.finish()]);
-		await this.syncDevice();
 		await tempDstBuffer.mapAsync(GPUMapMode.READ);
 
 		const result = new TypedArray(tempDstBuffer.getMappedRange());
@@ -897,7 +894,6 @@ export class SourceModule {
 			passEncoder.end();
 
 			this.device.queue.submit([commandEncoder.finish()]);
-			await this.gpu.syncDevice();
 		};
 	}
 	getFunctionOnlyBuffers(name) {
