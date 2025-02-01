@@ -87,7 +87,7 @@ function swapItems(arr, i, j) {
 	arr[j] = temp;
 }
 
-function arrIsSame(a, b) {
+export function arrIsSame(a, b) {
 	if (a.length !== b.length) return false;
 	for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
 	return true;
@@ -264,6 +264,23 @@ export class Tensor {
 	static get gpu() {
 		assert(gpu !== undefined, "gpu not found!");
 		return gpu;
+	}
+
+	/**
+	 * Overrides the underlying GPU data. If the data is larger or smaller, will free and resize buffer
+	 * Otherwise will just memcpy
+	 * @param {TypedArray} cpuBuffer
+	 * @param {Shape | undefined} shape default undefined and will inherit this shape
+	 */
+	async setGPUBuffer(cpuBuffer, shape = undefined) {
+		shape = shape === undefined ? this.shape : shape;
+		cpuBuffer = this.DTypedArray.from(cpuBuffer);
+		// might need to grow if larger shape!
+		if (length(shape) !== length(this.shape)) {
+			this.gpuBuffer.free();
+			this.gpuBuffer = await gpu.memAlloc(cpuBuffer.byteLength);
+		}
+		await gpu.memcpyHostToDevice(this.gpuBuffer, cpuBuffer);
 	}
 
 	/**

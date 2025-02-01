@@ -1,4 +1,4 @@
-import { assert, Tensor } from "./tensorscript";
+import { arrIsSame, ShapeTypedArray, assert, Tensor } from "./tensorscript";
 
 /** @typedef {number} OpCode */
 /** @typedef {(tensors: Tensor[], ...args: unknown[]) => Promise<Tensor>} OpFunc */
@@ -7,14 +7,15 @@ import { assert, Tensor } from "./tensorscript";
 /** @typedef {Record<OpCode, BackwardsOpFunc>} BackwardsOpsMap */
 
 // assign each op code an integer (make sure to increment numOps if you add another)
-const NUM_OPS = 7;
+const NUM_OPS = 8;
 /** @type {OpCode[]} */
-const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
+const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP, TRANSPOSE_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
 
 /** @type {OpsMap} */
 const UNARY_OPS = {
 	[SUM_OP]: ([a], dim) => a.sum(dim),
 	[SQUARE_OP]: ([a]) => a.pow(2),
+	[TRANSPOSE_OP]: ([a], swaps) => a.transpose(swaps),
 };
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_UNARY_OPS = {
@@ -29,6 +30,10 @@ const BACKWARDS_UNARY_OPS = {
 			twoA.free();
 			return res;
 		};
+		return [drda];
+	},
+	[TRANSPOSE_OP]: ([a], resultGrad, swaps) => {
+		const drda = () => resultGrad.transpose(swaps);
 		return [drda];
 	},
 };
@@ -94,6 +99,12 @@ export class Lazy {
 	}
 	square() {
 		return this._unaryOp(SQUARE_OP);
+	}
+	get T() {
+		return this.transpose();
+	}
+	transpose(swaps = undefined) {
+		return this._unaryOp(TRANSPOSE_OP, swaps);
 	}
 
 	_binaryOp(other, OP_CODE, ...opArgs) {
@@ -173,6 +184,7 @@ export class Lazy {
 
 	async backward() {
 		assert(this.tensor, "result needs to be evaluated");
+		assert(arrIsSame(new ShapeTypedArray(this.tensor.shape.length).fill(1), this.tensor.shape), "Needs to be called on a reduce value (shape dimensions all 1)");
 
 		/** @type {(lazyTensorOp: Lazy) => Promise<void>} */
 		const _recurBackward = async (lazyTensorResult) => {

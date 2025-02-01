@@ -298,15 +298,15 @@ async function linearRegressionExample() {
 	const n = 1_000;
 	const line = Array(n)
 		.fill(0)
-		.map((_, i) => i);
+		.map((_, i) => i / n);
 
 	// Graph model functional spec
-	const x = Lazy.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
-	const y = Lazy.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
+	const x = Lazy.tensor(await Tensor.tensor(line, [1, n]));
+	const y = Lazy.tensor(await Tensor.tensor(line, [1, n]));
 	const w = Lazy.tensor(await Tensor.tensor([0], [1, 1]), /*requiresGrad=*/ true);
-	const yhat = x.matmul(w);
+	const yhat = x.T.matmul(w);
 	const loss = yhat
-		.sub(y)
+		.sub(y.T)
 		.square()
 		.sum(0)
 		.mul(1 / n); // mse loss
