@@ -261,6 +261,11 @@ export class Tensor {
 		gpu = new GPU(device);
 	}
 
+	static get gpu() {
+		assert(gpu !== undefined, "gpu not found!");
+		return gpu;
+	}
+
 	/**
 	 * Fill a Tensor all the a given fillValue
 	 * @param {Shape} shape
