@@ -8,12 +8,13 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
+	await linearRegressionInterceptExample();
 	// await mulBackwardExample();
 	// await scalarForwardExample();
 	// await numberBinaryOpExample();
 	// await expandExample2();
 	// await sumGradExample();
-	await linearRegressionExample();
+	// await linearRegressionExample();
 	// await expandExample();
 	// await unsqueezeExample();
 	// await copyExample();
@@ -294,6 +295,47 @@ async function copyExample() {
 	console.log("a.T.contiguous() buffer", await (await aT.contiguous()).cpuBuffer());
 }
 
+async function linearRegressionInterceptExample() {
+	const n = 100;
+	const line = Array(n)
+		.fill(0)
+		.map((_, i) => i / n);
+
+	// Graph model functional spec
+	const dshape = [n, 1];
+	const x = Lazy.tensor(await Tensor.tensor(line, dshape));
+	const y = Lazy.tensor(await Tensor.tensor(line, dshape));
+	const w = Lazy.tensor(await Tensor.tensor([-5], [1, 1]), /*requiresGrad=*/ true);
+	const b = Lazy.tensor(await Tensor.tensor([1], [1, 1]), /*requiresGrad=*/ true);
+
+	const yhat = x.matmul(w).add(b.expand(dshape));
+	const loss = yhat
+		.sub(y)
+		.square()
+		.sum(0)
+		.mul(1 / n); // mse loss
+
+	const iterations = 100;
+	const lr = 2;
+	const optim = new OptimSGD([w, b], lr);
+	for (let i = 0; i < iterations; i++) {
+		console.time("iteration" + i);
+		await loss.forward();
+		await loss.zeroGrad();
+		await loss.backward();
+		await optim.update();
+		console.timeEnd("iteration" + i);
+	}
+
+	console.log("W");
+	await w.print();
+	console.log("B");
+	await b.print();
+	console.log("LOSS");
+	await loss.print();
+
+	loss.freeGraph();
+}
 async function linearRegressionExample() {
 	const n = 1_000;
 	const line = Array(n)

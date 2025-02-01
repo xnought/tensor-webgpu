@@ -7,15 +7,16 @@ import { arrIsSame, ShapeTypedArray, assert, Tensor } from "./tensorscript";
 /** @typedef {Record<OpCode, BackwardsOpFunc>} BackwardsOpsMap */
 
 // assign each op code an integer (make sure to increment numOps if you add another)
-const NUM_OPS = 8;
+const NUM_OPS = 9;
 /** @type {OpCode[]} */
-const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP, TRANSPOSE_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
+const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP, TRANSPOSE_OP, EXPAND_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
 
 /** @type {OpsMap} */
 const UNARY_OPS = {
 	[SUM_OP]: ([a], dim) => a.sum(dim),
 	[SQUARE_OP]: ([a]) => a.pow(2),
 	[TRANSPOSE_OP]: ([a], swaps) => a.transpose(swaps),
+	[EXPAND_OP]: ([a], shape) => a.expand(shape),
 };
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_UNARY_OPS = {
@@ -34,6 +35,10 @@ const BACKWARDS_UNARY_OPS = {
 	},
 	[TRANSPOSE_OP]: ([a], resultGrad, swaps) => {
 		const drda = () => resultGrad.transpose(swaps);
+		return [drda];
+	},
+	[EXPAND_OP]: ([a], resultGrad, shape) => {
+		const drda = () => resultGrad.expand(a.shape);
 		return [drda];
 	},
 };
@@ -105,6 +110,9 @@ export class Lazy {
 	}
 	transpose(swaps = undefined) {
 		return this._unaryOp(TRANSPOSE_OP, swaps);
+	}
+	expand(shape) {
+		return this._unaryOp(EXPAND_OP, shape);
 	}
 
 	_binaryOp(other, OP_CODE, ...opArgs) {

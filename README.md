@@ -18,9 +18,9 @@ All computation done on the GPU!
 - [x] unsqueeze
 - [x] expandTo
 - [x] Lazy evaluation and backprop (partially done)
-- [ ] Linear Regression
+- [x] Linear Regression
   - [x] Without intercept
-  - [ ] With intercept
+  - [x] With intercept
 - [x] Don't compute gradients for leaves for faster
 - [x] tensor.set method for batches
 - [ ] log and exp (then can do softmax and cross-entropy)

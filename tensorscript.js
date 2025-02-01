@@ -420,7 +420,7 @@ export class Tensor {
 		let t = this;
 		for (let dim = 0; dim < shape.length; dim++) {
 			const expandTo = shape[dim];
-			if (expandTo > this.shape[dim]) t = t.expandTo(expandTo, dim);
+			t = t.expandTo(expandTo, dim);
 		}
 		return t;
 	}
