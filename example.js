@@ -300,12 +300,9 @@ async function linearRegressionExample() {
 		.fill(0)
 		.map((_, i) => i);
 
-	const batchX = await (await Tensor.tensor(line, [n, 1])).mul(1 / n);
-	const batchY = await (await Tensor.tensor(line, [n, 1])).mul(1 / n);
-
 	// Graph model functional spec
-	const x = Lazy.tensor(batchX);
-	const y = Lazy.tensor(batchY);
+	const x = Lazy.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
+	const y = Lazy.tensor(await (await Tensor.tensor(line, [n, 1])).mul(1 / n));
 	const w = Lazy.tensor(await Tensor.tensor([0], [1, 1]), /*requiresGrad=*/ true);
 	const yhat = x.matmul(w);
 	const loss = yhat

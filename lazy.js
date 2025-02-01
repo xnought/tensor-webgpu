@@ -82,7 +82,7 @@ export class Lazy {
 		this.grad = undefined;
 		this.requiresGrad = requiresGrad; // matters when we check leaf
 	}
-	static tensor(t, requiresGrad = false) {
+	static tensor(t = undefined, requiresGrad = false) {
 		return new Lazy(TENSOR_OP, [], [], t, requiresGrad);
 	}
 

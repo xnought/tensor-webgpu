@@ -783,8 +783,8 @@ export class Tensor {
 	}
 
 	free() {
-		this.assertNotFreed(); // don't free twice
-		if (this.owned) {
+		if (this.gpuBuffer === undefined) console.warn("Tried to free a gpuBuffer twice!");
+		if (this.gpuBuffer && this.owned) {
 			gpu.free(this.gpuBuffer);
 		}
 		this.gpuBuffer = undefined;
