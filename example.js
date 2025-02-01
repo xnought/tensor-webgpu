@@ -8,7 +8,9 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
-	await linearRegressionInterceptExample();
+	await reluExample();
+	// await softmaxExample();
+	// await linearRegressionInterceptExample();
 	// await mulBackwardExample();
 	// await scalarForwardExample();
 	// await numberBinaryOpExample();
@@ -28,6 +30,16 @@ async function main() {
 	// await sumExample();
 	// await inverseIndexing();
 	// await inverseIndexing31();
+}
+
+async function reluExample() {
+	const a = await Tensor.tensor([-1, 2, 3], [3, 1]);
+	await (await a.relu()).print();
+}
+
+async function softmaxExample() {
+	const a = await Tensor.tensor([1, 2, 3], [3, 1]);
+	await (await a.softmax(0)).print();
 }
 
 async function mulBackwardExample() {

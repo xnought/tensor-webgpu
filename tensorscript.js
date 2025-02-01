@@ -499,6 +499,15 @@ export class Tensor {
 	}
 
 	/**
+	 * exp the values
+	 * @param {Tensor} dst
+	 * @param {Tensor} src
+	 */
+	static async exp(dst, src) {
+		await Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = exp(src[srcIdx])`);
+	}
+
+	/**
 	 * Copies the current tensor contiguously (so even an transposed data, will be shoved together)
 	 * Main difference between this and .copy() is we recompute strides here rather than copying
 	 * @returns {Promise<Tensor>}
@@ -506,6 +515,15 @@ export class Tensor {
 	async contiguous() {
 		const dst = await Tensor.empty(this.shape, this.dtype);
 		await Tensor.contiguous(dst, this);
+		return dst;
+	}
+
+	/**
+	 * @returns {Promise<Tensor>}
+	 */
+	async exp() {
+		const dst = await Tensor.empty(this.shape, this.dtype);
+		await Tensor.exp(dst, this);
 		return dst;
 	}
 
@@ -571,6 +589,21 @@ export class Tensor {
 		const dst = await Tensor.empty(dstShape, this.dtype);
 		await Tensor.sum(dst, this, dim);
 		return dst;
+	}
+
+	/**
+	 * Softmax across the dim
+	 * @todo implement online softmax kernel
+	 * @param {number} dim
+	 * @returns {Promise<Tensor>}
+	 */
+	async softmax(dim = -1) {
+		const exp = await this.exp();
+		const summed = await exp.sum(dim);
+		const softmax = await exp.div(summed.expand(exp.shape)); // e_i / sum(e)
+		summed.free();
+		exp.free();
+		return softmax;
 	}
 
 	/**
@@ -776,6 +809,12 @@ export class Tensor {
 	async matmul(other) {
 		const dst = await Tensor.empty([this.shape[0], other.shape[1]]);
 		await Tensor.matmul(dst, this, other);
+		return dst;
+	}
+
+	async relu() {
+		const dst = await Tensor.empty(this.shape, this.dtype);
+		Tensor._elementWiseUnaryOp(dst, this, /*wgsl*/ `dst[dstIdx] = max(src[srcIdx], 0)`);
 		return dst;
 	}
 
