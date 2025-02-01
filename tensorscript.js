@@ -404,6 +404,33 @@ export class Tensor {
 	}
 
 	/**
+	 * Applies operation elementwise in place
+	 * @param {Tensor} dst
+	 * @param {string} op wgsl line where you set dst given, dstIdx
+	 */
+	static async _elementWiseUnaryOpInplace(dst, op) {
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+		const unaryOp = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					${op};
+				}
+			}
+			`
+			)
+			.getFunction("main");
+
+		await unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer);
+	}
+
+	/**
 	 * Applies operation elementwise
 	 * @param {Tensor} dst
 	 * @param {Tensor} src
@@ -433,6 +460,11 @@ export class Tensor {
 			.getFunction("main");
 
 		await unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+	}
+
+	async fillInplace(fillValue) {
+		await Tensor._elementWiseUnaryOpInplace(this, /*wgsl*/ `dst[dstIdx] = ${this.dtype}(${fillValue})`);
+		return this;
 	}
 
 	/**
@@ -578,6 +610,47 @@ export class Tensor {
 	}
 	async add(other) {
 		return this._elementWiseBinaryOp(other, Tensor.add);
+	}
+
+	/**
+	 * Elementwise kernel generator in place accumulation!
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} src dst = dst + src
+	 * @param {string} op wgsl op
+	 */
+	static async _elementWiseBinaryOpInplace(dst, src, op) {
+		assert(arrIsSame(dst.shape, src.shape), "dst, src, must have the same shape");
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+
+		const elementOp = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
+
+		 	@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
+					${op};
+				}
+			}`
+			)
+			.getFunction("main");
+
+		await elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+	}
+	async addInplace(other) {
+		await Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] += src[srcIdx]`);
+		return this;
+	}
+	async subInplace(other) {
+		await Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] -= src[srcIdx]`);
+		return this;
 	}
 
 	/**

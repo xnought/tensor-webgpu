@@ -304,7 +304,7 @@ async function linearRegressionExample() {
 	const w = LazyTensor.tensor(await Tensor.tensor([0.5], [1, 1]));
 	const tunableParams = [w];
 
-	const iterations = 50;
+	const iterations = 100;
 	const lr = 0.1;
 
 	const yhat = x.matmul(w);
@@ -314,13 +314,16 @@ async function linearRegressionExample() {
 		.sum(0)
 		.mul(1 / n); // mse loss
 
+	console.time("iteration");
 	for (let i = 0; i < iterations; i++) {
+		console.log("ITER", i);
 		await loss.forward();
-		loss.resetGrads(); // make sure we accumulate grads from 0
+		loss.zeroGrad(); // make sure we accumulate grads from 0
 		await loss.backward();
 		await updateSGD(tunableParams, lr);
-		console.log(i);
 	}
+	console.timeEnd("iteration");
+
 	console.log("W");
 	await w.print();
 	console.log("LOSS");

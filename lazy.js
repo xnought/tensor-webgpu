@@ -53,14 +53,14 @@ const BACKWARDS_BINARY_OPS = {
 		return [drda, drdb];
 	},
 	[MUL_OP]: async ([a, b], resultGrad) => {
-		const drda = await resultGrad.mul(b);
-		const drdb = await resultGrad.mul(a);
-		return [drda, drdb];
+		const drda = resultGrad.mul(b);
+		const drdb = resultGrad.mul(a);
+		return Promise.all([drda, drdb]);
 	},
 	[MATMUL_OP]: async ([a, b], resultGrad) => {
-		const drda = await resultGrad.matmul(b.T);
-		const drdb = await a.T.matmul(resultGrad);
-		return [drda, drdb];
+		const drda = resultGrad.matmul(b.T);
+		const drdb = a.T.matmul(resultGrad);
+		return Promise.all([drda, drdb]);
 	},
 };
 
@@ -164,12 +164,7 @@ export class LazyTensor {
 		if (this.grad === undefined) {
 			this.grad = await Tensor.fill(0, this.result.shape, this.result.dtype);
 		}
-		// this.grad += newGrad;
-		const thisGrad = await this.grad.add(newGrad);
-		this.grad.free();
-		// newGrad.free(); // if I'm getting issues free that
-		this.grad = thisGrad;
-		// await Tensor.add(this.grad, this.grad, newGrad); // currently fails due to bug in my webgpu code FIX AT SOME POINT!
+		this.grad.addInplace(newGrad); // this.grad += newGrad
 	}
 
 	async backward() {
@@ -201,14 +196,11 @@ export class LazyTensor {
 		await _recurBackward(this);
 	}
 
-	resetGrads() {
+	async zeroGrad() {
 		if (!this.grad) return;
-		this.grad.free();
-		this.grad = undefined;
-		// in _accumulateGradient we set undefined gradients to 0s in the backward pass, so this is all we have to do for now
-
+		await this.grad.fillInplace(0);
 		for (let i = 0; i < this.childArgs.length; i++) {
-			if (typeof this.childArgs[i] !== "number") this.childArgs[i].resetGrads();
+			if (typeof this.childArgs[i] !== "number") this.childArgs[i].zeroGrad();
 		}
 	}
 
@@ -241,11 +233,6 @@ export async function updateSGD(params, lr = 1e-3) {
 	for (const p of params) {
 		assert(p.grad && p.result);
 		const scaledGrad = await p.grad.mul(lr);
-		const prevData = p.result; // TODO: update in place!
-		p.result = await prevData.sub(scaledGrad);
-
-		//free intermediate variables and previous data. TODO: update the data in place!
-		scaledGrad.free();
-		prevData.free();
+		await p.result.subInplace(scaledGrad);
 	}
 }
