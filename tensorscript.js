@@ -373,7 +373,7 @@ export class Tensor {
 			fn main(@builtin(global_invocation_id) gid : vec3u) {
 				if(gid.x < ${LENGTH}) {
 					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
-					${op};
+					${op}
 				}
 			}
 			`
@@ -410,7 +410,7 @@ export class Tensor {
 				if(gid.x < ${LENGTH}) {
 					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
 					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
-					${op};
+					${op}
 				}
 			}
 			`
@@ -510,7 +510,7 @@ export class Tensor {
 					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
 					let srcAIdx = ${wgslBaseIdx(srcA.shape, srcA.strides, "gid.x", -1)};
 					let srcBIdx = ${wgslBaseIdx(srcB.shape, srcB.strides, "gid.x", -1)};
-					dst[dstIdx] = ${op};
+					${op}
 				}
 			}`
 			)
@@ -554,7 +554,7 @@ export class Tensor {
 				if(gid.x < ${LENGTH}) {
 					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
 					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
-					${op};
+					${op}
 				}
 			}`
 			)
@@ -570,7 +570,7 @@ export class Tensor {
 	 * @param {Tensor} srcB b in a+b
 	 */
 	add(other) {
-		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]+srcB[srcBIdx]`);
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `dst[dstIdx] = srcA[srcAIdx]+srcB[srcBIdx];`);
 	}
 
 	/**
@@ -579,7 +579,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	sub(other) {
-		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]-srcB[srcBIdx]`);
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `dst[dstIdx] = srcA[srcAIdx]-srcB[srcBIdx];`);
 	}
 
 	/**
@@ -588,7 +588,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	mul(other) {
-		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]*srcB[srcBIdx]`);
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `dst[dstIdx] = srcA[srcAIdx]*srcB[srcBIdx];`);
 	}
 
 	/**
@@ -597,7 +597,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	div(other) {
-		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]/srcB[srcBIdx]`);
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `dst[dstIdx] = srcA[srcAIdx]/srcB[srcBIdx];`);
 	}
 
 	/**
@@ -606,7 +606,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	pow(other) {
-		return this._elementWiseBinaryOp(other, /*wgsl*/ `${this.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])))`);
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `dst[dstIdx] = ${this.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])));`);
 	}
 
 	/**
@@ -615,7 +615,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	add_(other) {
-		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] += src[srcIdx]`);
+		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] += src[srcIdx];`);
 		return this;
 	}
 
@@ -625,7 +625,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	sub_(other) {
-		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] -= src[srcIdx]`);
+		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] -= src[srcIdx];`);
 		return this;
 	}
 
@@ -658,7 +658,7 @@ export class Tensor {
 	}
 
 	fillInplace(fillValue) {
-		return this._elementWiseUnaryOpInplace(/*wgsl*/ `dst[dstIdx] = ${this.dtype}(${fillValue})`);
+		return this._elementWiseUnaryOpInplace(/*wgsl*/ `dst[dstIdx] = ${this.dtype}(${fillValue});`);
 	}
 
 	/**
@@ -667,7 +667,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	contiguous() {
-		return this._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = src[srcIdx]`);
+		return this._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = src[srcIdx];`);
 	}
 
 	/**
@@ -675,7 +675,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	exp() {
-		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = exp(src[srcIdx])`);
+		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = exp(src[srcIdx]);`);
 	}
 
 	/**
@@ -683,7 +683,7 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	relu() {
-		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = max(src[srcIdx], 0)`);
+		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = max(src[srcIdx], 0);`);
 	}
 
 	/**

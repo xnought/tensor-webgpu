@@ -17,6 +17,7 @@ const UNARY_OPS = {
 	[SQUARE_OP]: ([a]) => a.pow(2),
 	[TRANSPOSE_OP]: ([a], swaps) => a.transpose(swaps),
 	[EXPAND_OP]: ([a], shape) => a.expand(shape),
+	[RELU_OP]: ([a]) => a.relu(),
 };
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_UNARY_OPS = {
@@ -39,6 +40,24 @@ const BACKWARDS_UNARY_OPS = {
 	},
 	[EXPAND_OP]: ([a], result, resultGrad, shape) => {
 		const drda = () => resultGrad.expand(a.shape);
+		return [drda];
+	},
+	[RELU_OP]: ([a], result, resultGrad) => {
+		const drda = () => {
+			const res = result._elementWiseBinaryOp(
+				resultGrad,
+				/*wgsl*/ `
+				let result = srcA[srcAIdx];
+				let resultGrad = srcB[srcBIdx];
+				if(result > 0) {
+					dst[dstIdx] = resultGrad;
+				} else {
+					dst[dstIdx] = 0;
+				}
+				`
+			);
+			return res;
+		};
 		return [drda];
 	},
 };

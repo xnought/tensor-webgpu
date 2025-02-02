@@ -8,6 +8,7 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
+	await reluBackwardExample();
 	// await mnistExample();
 	// await reluExample();
 	// await softmaxExample();
@@ -31,6 +32,15 @@ async function main() {
 	// await sumExample();
 	// await inverseIndexing();
 	// await inverseIndexing31();
+}
+
+async function reluBackwardExample() {
+	const x = Lazy.tensor(Tensor.tensor([-1, 1, 0], [3, 1]), true);
+	const relu = x.relu();
+	const summed = relu.sum(0).mul(2);
+	summed.forward();
+	summed.backward();
+	await x.grad.print();
 }
 
 function linearWeights(inNeurons, outNeurons) {
