@@ -1,4 +1,4 @@
-import { arrIsSame, ShapeTypedArray, assert, Tensor } from "./tensorscript";
+import { arrIsSame, ShapeTypedArray, assert, Tensor, copyTypedArray } from "./tensorscript";
 
 /** @typedef {number} OpCode */
 /** @typedef {(tensors: Tensor[], ...args: unknown[]) => Tensor} OpFunc */
@@ -7,9 +7,9 @@ import { arrIsSame, ShapeTypedArray, assert, Tensor } from "./tensorscript";
 /** @typedef {Record<OpCode, BackwardsOpFunc>} BackwardsOpsMap */
 
 // assign each op code an integer (make sure to increment numOps if you add another)
-const NUM_OPS = 10;
+const NUM_OPS = 13;
 /** @type {OpCode[]} */
-const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP, TRANSPOSE_OP, EXPAND_OP, RELU_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
+const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP, TRANSPOSE_OP, EXPAND_OP, RELU_OP, DIV_OP, EXP_OP, SOFTMAX_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
 
 /** @type {OpsMap} */
 const UNARY_OPS = {
@@ -18,6 +18,8 @@ const UNARY_OPS = {
 	[TRANSPOSE_OP]: ([a], swaps) => a.transpose(swaps),
 	[EXPAND_OP]: ([a], shape) => a.expand(shape),
 	[RELU_OP]: ([a]) => a.relu(),
+	[EXP_OP]: ([a]) => a.exp(),
+	[SOFTMAX_OP]: ([a], dim) => a.softmax(dim),
 };
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_UNARY_OPS = {
@@ -60,6 +62,10 @@ const BACKWARDS_UNARY_OPS = {
 		};
 		return [drda];
 	},
+	[EXP_OP]: ([a], result, resultGrad) => {
+		const drda = () => resultGrad.mul(result);
+		return [drda];
+	},
 };
 
 // the second argument (b) may or may not be a number or tensor in elementwise operations (add, sub, pow)
@@ -69,6 +75,7 @@ const BINARY_OPS = {
 	[SUB_OP]: ([a, b]) => a.sub(b),
 	[MUL_OP]: ([a, b]) => a.mul(b),
 	[MATMUL_OP]: ([a, b]) => a.matmul(b),
+	[DIV_OP]: ([a, b]) => a.div(b),
 };
 
 // the second argument (b) may or may not be a number or tensor in elementwise operations (add, sub, pow)
@@ -94,6 +101,27 @@ const BACKWARDS_BINARY_OPS = {
 		const drdb = () => a.T.matmul(resultGrad);
 		return [drda, drdb];
 	},
+	[DIV_OP]: ([a, b], result, resultGrad) => {
+		// a/b -> dr/da = 1/b = b^(-1)
+		const drda = () => {
+			const recip = typeof b === "number" ? Tensor.tensor([1 / b], a.shape) : b.pow(-1);
+			const res = resultGrad.mul(recip);
+			recip.free();
+			return res;
+		};
+		// a/b -> dr/db = -a/b^2 = -a*b^(-2)
+		const drdb = () => {
+			const recip = typeof b === "number" ? Tensor.tensor([1 / (b * b)], a.shape) : b.pow(-2);
+			const negA = a.mul(-1);
+			const div = negA.mul(recip);
+			const res = resultGrad.mul(recip);
+			recip.free();
+			div.free();
+			negA.free();
+			return res;
+		};
+		return [drda, drdb];
+	},
 };
 
 export class Lazy {
@@ -111,12 +139,18 @@ export class Lazy {
 		this.grad = undefined;
 		this.requiresGrad = requiresGrad; // matters when we check leaf
 	}
-	static tensor(t = undefined, requiresGrad = false) {
-		return new Lazy(TENSOR_OP, [], [], t, requiresGrad);
+	static tensor(t, requiresGrad = false) {
+		return new Lazy(TENSOR_OP, [], [], t, requiresGrad, t.shape);
 	}
 
 	_unaryOp(OP_CODE, ...opArgs) {
 		return new Lazy(OP_CODE, [this], opArgs, undefined, this.requiresGrad);
+	}
+	softmax(dim = -1) {
+		return this._unaryOp(SOFTMAX_OP, dim);
+	}
+	exp() {
+		return this._unaryOp(EXP_OP);
 	}
 	sum(dim) {
 		return this._unaryOp(SUM_OP, dim);
@@ -139,6 +173,9 @@ export class Lazy {
 
 	_binaryOp(other, OP_CODE, ...opArgs) {
 		return new Lazy(OP_CODE, [this, other], opArgs, undefined, this.requiresGrad || other.requiresGrad);
+	}
+	div(other) {
+		return this._binaryOp(other, DIV_OP);
 	}
 	add(other) {
 		return this._binaryOp(other, ADD_OP);
@@ -195,7 +232,7 @@ export class Lazy {
 
 		// use the arguments to evaluate this function
 		const op = this._getOpFunc();
-		if (this.tensor) this.tensor.free(); // free whatever memory was in the result from before
+		// if (this.tensor) this.tensor.free(); // free whatever memory was in the result from before
 		this.tensor = op(tensorArgs, ...this.opArgs);
 
 		return this.tensor;

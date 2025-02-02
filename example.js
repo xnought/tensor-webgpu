@@ -8,8 +8,9 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
-	await reluBackwardExample();
-	// await mnistExample();
+	// await softmaxBackwardExample();
+	// await reluBackwardExample();
+	await mnistExample();
 	// await reluExample();
 	// await softmaxExample();
 	// await linearRegressionInterceptExample();
@@ -34,6 +35,15 @@ async function main() {
 	// await inverseIndexing31();
 }
 
+async function softmaxBackwardExample() {
+	const x = Lazy.tensor(Tensor.tensor([-1, 1, 0], [3, 1]), true);
+	const softmax = x.softmax(0);
+	const summed = softmax.sum(0);
+	summed.forward();
+	await softmax.print();
+	summed.backward();
+	await x.grad.print();
+}
 async function reluBackwardExample() {
 	const x = Lazy.tensor(Tensor.tensor([-1, 1, 0], [3, 1]), true);
 	const relu = x.relu();
@@ -51,32 +61,37 @@ function linearWeights(inNeurons, outNeurons) {
 
 /**
  * Relu model mnist MLP
- * @param {*} x
- * @param {*} y
- * @param {*} layers
- * @param {*} batches
+ * @param {Lazy} x
+ * @param {number[]} layers
+ * @param {number} batches
+ * @param {number} classes
  * @returns {Lazy}
  */
-function createClassifierMLP(x, layers = [728, 128], batches = 32) {
+function createClassifierMLP(x, layers = [728, 128], batches = 32, classes = 10) {
 	for (let i = 0; i < layers.length - 1; i++) {
 		const [w, b] = linearWeights(layers[i], layers[i + 1]);
-		x = w
-			.matmul(x)
-			.add(b.expand([batches, b.shape[1]]))
-			.relu(); // relu(wX + b)
+		x = x
+			.matmul(w)
+			.add(b.expand([batches, layers[i + 1]]))
+			.relu();
 	}
-	const [wOut, bOut] = linearWeights(layers.at(-1), 10);
-	const probs = wOut.matmul(bOut.expand([batches, 10])).softmax(-1); // softmax(wX + b) last layer probs
+	const [w, b] = linearWeights(layers.at(-1), classes);
+	const probs = x
+		.matmul(w)
+		.add(b.expand([batches, classes]))
+		.softmax(-1);
 	return probs;
 }
 
 async function mnistExample() {
 	const batchSize = 32;
 	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 728]));
-	const model = createClassifierMLP(x, [728, 128], batchSize);
+	const model = createClassifierMLP(x, [728, 256], batchSize);
 
+	console.time("FORWARD");
 	const yhat = model.forward();
 	await yhat.print();
+	console.timeEnd("FORWARD");
 }
 
 async function reluExample() {

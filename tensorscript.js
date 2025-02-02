@@ -46,7 +46,7 @@ function numWorkgroups(totalData, threadsPerWorkgroup) {
  * @param {TypedArray} arr
  * @return {TypedArray}
  */
-function copyTypedArray(arr) {
+export function copyTypedArray(arr) {
 	const cpy = new arr.constructor(arr.length);
 	for (let i = 0; i < arr.length; i++) {
 		cpy[i] = arr[i];
@@ -684,6 +684,14 @@ export class Tensor {
 	 */
 	relu() {
 		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = max(src[srcIdx], 0);`);
+	}
+
+	/**
+	 * 1/this
+	 * @returns {Tensor}
+	 */
+	reciprocal() {
+		return this._elementWiseUnaryOp(other, /*wgsl*/ `dst[dstIdx] = 1/src[srcIdx]`);
 	}
 
 	/**
