@@ -959,7 +959,7 @@ export class SourceModule {
 	}
 	getFunctionOnlyBuffers(name) {
 		const gpuFunc = this.getFunctionExplicitBindings(name);
-		return async (workgroups, ...buffers) => {
+		return (workgroups, ...buffers) => {
 			const inferredBindingsFromBuffers = buffers.map((buffer, binding) => ({
 				binding,
 				resource: { buffer },
