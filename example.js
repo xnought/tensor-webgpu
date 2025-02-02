@@ -8,9 +8,10 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
-	await reluExample();
+	// await mnistExample();
+	// await reluExample();
 	// await softmaxExample();
-	// await linearRegressionInterceptExample();
+	await linearRegressionInterceptExample();
 	// await mulBackwardExample();
 	// await scalarForwardExample();
 	// await numberBinaryOpExample();
@@ -32,18 +33,23 @@ async function main() {
 	// await inverseIndexing31();
 }
 
+async function mnistExample() {
+	const a = Tensor.tensor([-1, 2, 3], [3, 1]);
+	await a.relu().print();
+}
+
 async function reluExample() {
-	const a = await Tensor.tensor([-1, 2, 3], [3, 1]);
-	await (await a.relu()).print();
+	const a = Tensor.tensor([-1, 2, 3], [3, 1]);
+	await a.relu().print();
 }
 
 async function softmaxExample() {
-	const a = await Tensor.tensor([1, 2, 3], [3, 1]);
-	await (await a.softmax(0)).print();
+	const a = Tensor.tensor([1, 2, 3], [3, 1]);
+	await a.softmax(0).print();
 }
 
 async function mulBackwardExample() {
-	const y = Lazy.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const y = Lazy.tensor(Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	await y.print();
 
 	const mean = y.sum(0).mul(1 / 4);
@@ -55,7 +61,7 @@ async function mulBackwardExample() {
 	await y.grad.print();
 }
 async function scalarForwardExample() {
-	const y = Lazy.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const y = Lazy.tensor(Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	await y.print();
 
 	const square = y.square();
@@ -70,8 +76,8 @@ async function scalarForwardExample() {
 	await y.grad.print();
 }
 async function sumGradExample() {
-	const y = Lazy.tensor(await Tensor.tensor([1, 2, 3, 4], [4, 1]));
-	const yhat = Lazy.tensor(await Tensor.tensor([1, 0, 3, 1], [4, 1]));
+	const y = Lazy.tensor(Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const yhat = Lazy.tensor(Tensor.tensor([1, 0, 3, 1], [4, 1]));
 	const loss = y.add(yhat);
 	await loss.forward(); // now compute everything (the c = a + b)
 	await c.print();
@@ -83,9 +89,9 @@ async function sumGradExample() {
 }
 
 async function divExample() {
-	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
-	const b = await Tensor.fill(2, a.shape);
-	const c = await a.div(b);
+	const a = Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = Tensor.fill(2, a.shape);
+	const c = a.div(b);
 
 	console.log("a");
 	await a.print();
@@ -97,9 +103,9 @@ async function divExample() {
 	await c.print();
 }
 async function mulExample() {
-	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
-	const b = await Tensor.fill(-1, a.shape);
-	const c = await a.mul(b);
+	const a = Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = Tensor.fill(-1, a.shape);
+	const c = a.mul(b);
 
 	console.log("a");
 	await a.print();
@@ -112,9 +118,9 @@ async function mulExample() {
 }
 
 async function subExample() {
-	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
-	const b = await Tensor.fill(1, a.shape);
-	const c = await a.sub(b);
+	const a = Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = Tensor.fill(1, a.shape);
+	const c = a.sub(b);
 
 	console.log("a");
 	await a.print();
@@ -127,9 +133,9 @@ async function subExample() {
 }
 
 async function addExample() {
-	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
-	const b = await Tensor.fill(1, a.shape);
-	const c = await a.add(b);
+	const a = Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const b = Tensor.fill(1, a.shape);
+	const c = a.add(b);
 
 	console.log("a");
 	await a.print();
@@ -142,15 +148,15 @@ async function addExample() {
 }
 
 async function sumExample() {
-	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7], [2, 2, 2], "f32");
+	const a = Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7], [2, 2, 2], "f32");
 	console.log("a");
 	await a.print();
 
 	console.log("Sum across");
-	await (await a.sum(-1)).print();
+	await a.sum(-1).print();
 }
 async function transposeExample() {
-	const a = await Tensor.tensor([1, 2, 3], [3, 1]);
+	const a = Tensor.tensor([1, 2, 3], [3, 1]);
 	console.log("a");
 	await a.print();
 
@@ -161,9 +167,9 @@ async function transposeExample() {
 	await a.T.print();
 }
 async function powExample() {
-	const a = await Tensor.tensor([1, 2, -3], [3, 1], "f32");
-	const b = await Tensor.fill(2, a.shape);
-	const c = await a.pow(b);
+	const a = Tensor.tensor([1, 2, -3], [3, 1], "f32");
+	const b = Tensor.fill(2, a.shape);
+	const c = a.pow(b);
 
 	console.log("a");
 	await a.print();
@@ -175,16 +181,16 @@ async function powExample() {
 	await c.print();
 }
 async function randomExample() {
-	const a = await Tensor.random([4, 1], "f32");
+	const a = Tensor.random([4, 1], "f32");
 	await a.print();
 }
 async function fillExample() {
-	const a = await Tensor.fill(1, [2, 2, 2], "u32");
+	const a = Tensor.fill(1, [2, 2, 2], "u32");
 	await a.print();
 }
 
 async function inverseIndexing() {
-	const a = await Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7], [2, 2, 2], "f32");
+	const a = Tensor.tensor([0, 1, 2, 3, 4, 5, 6, 7], [2, 2, 2], "f32");
 	const c = a.transpose([0, 2, 1]);
 
 	await c.print();
@@ -199,7 +205,7 @@ async function inverseIndexing() {
 }
 
 async function inverseIndexing31() {
-	const c = await Tensor.fill(1, [3, 2], "f32");
+	const c = Tensor.fill(1, [3, 2], "f32");
 	c.print();
 
 	for (let i = 0; i < 6; i++) {
@@ -213,9 +219,9 @@ async function inverseIndexing31() {
 }
 
 async function matmulExample3() {
-	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
-	const b = await Tensor.tensor([0, 1, 2, 3, 4, 5], [3, 2]);
-	const c = await a.matmul(b);
+	const a = Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
+	const b = Tensor.tensor([0, 1, 2, 3, 4, 5], [3, 2]);
+	const c = a.matmul(b);
 
 	await a.print();
 	await b.print();
@@ -226,10 +232,10 @@ async function matmulExample3() {
 
 async function matmulExample2() {
 	const shape = [784, 784];
-	const a = await Tensor.fill(1, shape);
-	const b = await Tensor.fill(1, shape);
-	const c = await Tensor.empty(shape);
-	await Tensor.matmul(c, a, b);
+	const a = Tensor.fill(1, shape);
+	const b = Tensor.fill(1, shape);
+	const c = Tensor.empty(shape);
+	Tensor.matmul(c, a, b);
 
 	await a.print();
 	await b.print();
@@ -259,10 +265,10 @@ async function matmulExample2() {
 	}
 }
 async function matmulExample() {
-	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
-	const b = await Tensor.tensor([0, 1, 2, 3, 4, 5], [3, 2]);
-	const c = await Tensor.empty([a.shape[0], b.shape[1]]);
-	await Tensor.matmul(c, a, b);
+	const a = Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
+	const b = Tensor.tensor([0, 1, 2, 3, 4, 5], [3, 2]);
+	const c = Tensor.empty([a.shape[0], b.shape[1]]);
+	Tensor.matmul(c, a, b);
 
 	await a.print();
 	await b.print();
@@ -293,7 +299,7 @@ async function matmulExample() {
 }
 
 async function copyExample() {
-	const a = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+	const a = Tensor.tensor([1, 2, 3, 4], [2, 2]);
 	const aT = a.T;
 
 	console.log("a");
@@ -304,7 +310,7 @@ async function copyExample() {
 
 	console.log("a.T buffer", await aT.cpuBuffer());
 	console.log();
-	console.log("a.T.contiguous() buffer", await (await aT.contiguous()).cpuBuffer());
+	console.log("a.T.contiguous() buffer", await aT.contiguous().cpuBuffer());
 }
 
 async function linearRegressionInterceptExample() {
@@ -315,10 +321,10 @@ async function linearRegressionInterceptExample() {
 
 	// Graph model functional spec
 	const dshape = [n, 1];
-	const x = Lazy.tensor(await Tensor.tensor(line, dshape));
-	const y = Lazy.tensor(await Tensor.tensor(line, dshape));
-	const w = Lazy.tensor(await Tensor.tensor([-5], [1, 1]), /*requiresGrad=*/ true);
-	const b = Lazy.tensor(await Tensor.tensor([1], [1, 1]), /*requiresGrad=*/ true);
+	const x = Lazy.tensor(Tensor.tensor(line, dshape));
+	const y = Lazy.tensor(Tensor.tensor(line, dshape));
+	const w = Lazy.tensor(Tensor.tensor([-5], [1, 1]), /*requiresGrad=*/ true);
+	const b = Lazy.tensor(Tensor.tensor([1], [1, 1]), /*requiresGrad=*/ true);
 
 	const yhat = x.matmul(w).add(b.expand(dshape));
 	const loss = yhat
@@ -332,10 +338,10 @@ async function linearRegressionInterceptExample() {
 	const optim = new OptimSGD([w, b], lr);
 	for (let i = 0; i < iterations; i++) {
 		console.time("iteration" + i);
-		await loss.forward();
-		await loss.zeroGrad();
-		await loss.backward();
-		await optim.update();
+		loss.forward();
+		loss.zeroGrad();
+		loss.backward();
+		optim.update();
 		console.timeEnd("iteration" + i);
 	}
 
@@ -355,9 +361,9 @@ async function linearRegressionExample() {
 		.map((_, i) => i / n);
 
 	// Graph model functional spec
-	const x = Lazy.tensor(await Tensor.tensor(line, [1, n]));
-	const y = Lazy.tensor(await Tensor.tensor(line, [1, n]));
-	const w = Lazy.tensor(await Tensor.tensor([0], [1, 1]), /*requiresGrad=*/ true);
+	const x = Lazy.tensor(Tensor.tensor(line, [1, n]));
+	const y = Lazy.tensor(Tensor.tensor(line, [1, n]));
+	const w = Lazy.tensor(Tensor.tensor([0], [1, 1]), /*requiresGrad=*/ true);
 	const yhat = x.T.matmul(w);
 	const loss = yhat
 		.sub(y.T)
@@ -386,20 +392,20 @@ async function linearRegressionExample() {
 }
 
 async function unsqueezeExample() {
-	const a = await Tensor.tensor([1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
+	const a = Tensor.tensor([1, 2, 3, 4, 5, 6, 7, 8], [2, 2, 2]);
 	await a.print();
 	await a.unsqueeze(0).print();
 }
 
 async function expandExample() {
-	const a = await Tensor.tensor([1, 2, 3], [1, 3]);
+	const a = Tensor.tensor([1, 2, 3], [1, 3]);
 	await a.print();
 	console.log("expand the first dimension to 3");
 	await a.expandTo(3, 0).print();
 
 	console.log("useful example");
-	let scalar = await Tensor.tensor([7], [1, 1]);
-	const tensor = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+	let scalar = Tensor.tensor([7], [1, 1]);
+	const tensor = Tensor.tensor([1, 2, 3, 4], [2, 2]);
 
 	console.log("scalar");
 	await scalar.print();
@@ -419,8 +425,8 @@ async function expandExample() {
 }
 
 async function expandExample2() {
-	let scalar = await Tensor.tensor([7], [1, 1]);
-	const tensor = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+	let scalar = Tensor.tensor([7], [1, 1]);
+	const tensor = Tensor.tensor([1, 2, 3, 4], [2, 2]);
 
 	console.log("scalar");
 	await scalar.print();
@@ -431,15 +437,15 @@ async function expandExample2() {
 	await scalar.expand(tensor.shape).print();
 
 	console.log("scalar*tensor now works");
-	const result = await scalar.expand(tensor.shape).mul(tensor);
+	const result = scalar.expand(tensor.shape).mul(tensor);
 	await result.print();
 }
 
 async function numberBinaryOpExample() {
-	const tensor = await Tensor.tensor([1, 2, 3, 4], [2, 2]);
+	const tensor = Tensor.tensor([1, 2, 3, 4], [2, 2]);
 	await tensor.print();
-	await (await tensor.div(2)).print();
-	await (await tensor.mul(2)).print();
-	await (await tensor.add(2)).print();
-	await (await tensor.pow(2)).print();
+	await tensor.div(2).print();
+	await tensor.mul(2).print();
+	await tensor.add(2).print();
+	await tensor.pow(2).print();
 }

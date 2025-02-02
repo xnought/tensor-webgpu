@@ -272,15 +272,15 @@ export class Tensor {
 	 * @param {TypedArray} cpuBuffer
 	 * @param {Shape | undefined} shape default undefined and will inherit this shape
 	 */
-	async setGPUBuffer(cpuBuffer, shape = undefined) {
+	setGPUBuffer(cpuBuffer, shape = undefined) {
 		shape = shape === undefined ? this.shape : shape;
 		cpuBuffer = this.DTypedArray.from(cpuBuffer);
 		// might need to grow if larger shape!
 		if (length(shape) !== length(this.shape)) {
 			this.gpuBuffer.free();
-			this.gpuBuffer = await gpu.memAlloc(cpuBuffer.byteLength);
+			this.gpuBuffer = gpu.memAlloc(cpuBuffer.byteLength);
 		}
-		await gpu.memcpyHostToDevice(this.gpuBuffer, cpuBuffer);
+		gpu.memcpyHostToDevice(this.gpuBuffer, cpuBuffer);
 	}
 
 	/**
@@ -288,13 +288,13 @@ export class Tensor {
 	 * @param {Shape} shape
 	 * @param {number} fillValue
 	 * @param {DType} dtype
-	 * @returns {Promise<Tensor>}
+	 * @returns {Tensor}
 	 */
-	static async fill(fillValue, shape, dtype = "f32") {
+	static fill(fillValue, shape, dtype = "f32") {
 		const LENGTH = length(shape);
 
 		// allocate empty GPU buffer
-		const gpuBuffer = await gpu.memAlloc(LENGTH * DTypedArray[dtype].BYTES_PER_ELEMENT);
+		const gpuBuffer = gpu.memAlloc(LENGTH * DTypedArray[dtype].BYTES_PER_ELEMENT);
 
 		// TODO: decide if I should define all kernels in global variables preloaded
 		// define fill gpu kernel
@@ -313,7 +313,7 @@ export class Tensor {
 			.getFunction("main");
 
 		// Call the gpu kernel
-		await fill([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], gpuBuffer);
+		fill([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], gpuBuffer);
 
 		return new Tensor(gpuBuffer, shape, strides(shape), dtype);
 	}
@@ -323,12 +323,12 @@ export class Tensor {
 	 * @param {TypedArray} data
 	 * @param {Shape} shape
 	 * @param {DType} dtype
-	 * @returns {Promise<Tensor>}
+	 * @returns {Tensor}
 	 */
-	static async tensor(data, shape, dtype = "f32") {
+	static tensor(data, shape, dtype = "f32") {
 		const cpuBuffer = new DTypedArray[dtype](data);
-		const gpuBuffer = await gpu.memAlloc(cpuBuffer.byteLength);
-		await gpu.memcpyHostToDevice(gpuBuffer, cpuBuffer);
+		const gpuBuffer = gpu.memAlloc(cpuBuffer.byteLength);
+		gpu.memcpyHostToDevice(gpuBuffer, cpuBuffer);
 		return new Tensor(gpuBuffer, shape, strides(shape), dtype);
 	}
 
@@ -337,10 +337,10 @@ export class Tensor {
 	 * @param {TypedArray} data
 	 * @param {Shape} shape
 	 * @param {DType} dtype
-	 * @returns {Promise<Tensor>}
+	 * @returns {Tensor}
 	 */
-	static async empty(shape, dtype = "f32") {
-		const gpuBuffer = await gpu.memAlloc(length(shape) * DTypedArray[dtype].BYTES_PER_ELEMENT);
+	static empty(shape, dtype = "f32") {
+		const gpuBuffer = gpu.memAlloc(length(shape) * DTypedArray[dtype].BYTES_PER_ELEMENT);
 		return new Tensor(gpuBuffer, shape, strides(shape), dtype);
 	}
 
@@ -349,9 +349,9 @@ export class Tensor {
 	 * @todo Implement random uniform kernel in GPU only
 	 * @param {Shape} shape
 	 * @param {DType} dtype
-	 * @returns {Promise<Tensor>}
+	 * @returns {Tensor}
 	 */
-	static async random(shape, dtype = "f32") {
+	static random(shape, dtype = "f32") {
 		const data = new DTypedArray[dtype](length(shape)).fill(0).map((_) => Math.random());
 		return Tensor.tensor(data, shape, dtype);
 	}
@@ -430,7 +430,7 @@ export class Tensor {
 	 * @param {Tensor} dst
 	 * @param {string} op wgsl line where you set dst given, dstIdx
 	 */
-	static async _elementWiseUnaryOpInplace(dst, op) {
+	static _elementWiseUnaryOpInplace(dst, op) {
 		const LENGTH = length(dst.shape);
 		const THREADS_PER_WORKGROUP = 256;
 		const dtype = dst.dtype;
@@ -449,7 +449,7 @@ export class Tensor {
 			)
 			.getFunction("main");
 
-		await unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer);
+		unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer);
 	}
 
 	/**
@@ -458,7 +458,7 @@ export class Tensor {
 	 * @param {Tensor} src
 	 * @param {string} op wgsl line where you set dst given, dstIdx, src, and srcIdx.
 	 */
-	static async _elementWiseUnaryOp(dst, src, op) {
+	static _elementWiseUnaryOp(dst, src, op) {
 		assert(arrIsSame(dst.shape, src.shape), "dst must have shape as src");
 
 		const LENGTH = length(dst.shape);
@@ -481,11 +481,11 @@ export class Tensor {
 			)
 			.getFunction("main");
 
-		await unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+		unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
 	}
 
-	async fillInplace(fillValue) {
-		await Tensor._elementWiseUnaryOpInplace(this, /*wgsl*/ `dst[dstIdx] = ${this.dtype}(${fillValue})`);
+	fillInplace(fillValue) {
+		Tensor._elementWiseUnaryOpInplace(this, /*wgsl*/ `dst[dstIdx] = ${this.dtype}(${fillValue})`);
 		return this;
 	}
 
@@ -494,8 +494,8 @@ export class Tensor {
 	 * @param {Tensor} dst
 	 * @param {Tensor} src
 	 */
-	static async contiguous(dst, src) {
-		await Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = src[srcIdx]`);
+	static contiguous(dst, src) {
+		Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = src[srcIdx]`);
 	}
 
 	/**
@@ -503,27 +503,27 @@ export class Tensor {
 	 * @param {Tensor} dst
 	 * @param {Tensor} src
 	 */
-	static async exp(dst, src) {
-		await Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = exp(src[srcIdx])`);
+	static exp(dst, src) {
+		Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = exp(src[srcIdx])`);
 	}
 
 	/**
 	 * Copies the current tensor contiguously (so even an transposed data, will be shoved together)
 	 * Main difference between this and .copy() is we recompute strides here rather than copying
-	 * @returns {Promise<Tensor>}
+	 * @returns {Tensor}
 	 */
-	async contiguous() {
-		const dst = await Tensor.empty(this.shape, this.dtype);
-		await Tensor.contiguous(dst, this);
+	contiguous() {
+		const dst = Tensor.empty(this.shape, this.dtype);
+		Tensor.contiguous(dst, this);
 		return dst;
 	}
 
 	/**
-	 * @returns {Promise<Tensor>}
+	 * @returns {Tensor}
 	 */
-	async exp() {
-		const dst = await Tensor.empty(this.shape, this.dtype);
-		await Tensor.exp(dst, this);
+	exp() {
+		const dst = Tensor.empty(this.shape, this.dtype);
+		Tensor.exp(dst, this);
 		return dst;
 	}
 
@@ -533,7 +533,7 @@ export class Tensor {
 	 * @param {Tensor} src what values are raised to the power
 	 * @param {number|null} dim defaults to null.
 	 */
-	static async sumLastDimension(dst, src) {
+	static sumLastDimension(dst, src) {
 		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
 		assert(dst.shape.at(-1) === 1, "dimension we sum over should be 1 in dst");
 
@@ -563,7 +563,7 @@ export class Tensor {
 			.getFunction("main");
 
 		// Call the gpu kernel
-		await sum([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+		sum([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
 
 		return dst;
 	}
@@ -574,20 +574,20 @@ export class Tensor {
 	 * @param {Tensor} src what values are raised to the power
 	 * @param {number|null} dim
 	 */
-	static async sum(dst, src, dim = -1) {
+	static sum(dst, src, dim = -1) {
 		// Shove the dimension we want to the end
 		const idxs = new Uint8Array(src.shape.length).fill(0).map((_, i) => i);
 		dim = negIndexWrap(src.shape.length, dim);
 		const end = src.shape.length - 1;
 		swapItems(idxs, dim, end); // said shoving
 
-		await Tensor.sumLastDimension(dst.transpose(idxs), src.transpose(idxs));
+		Tensor.sumLastDimension(dst.transpose(idxs), src.transpose(idxs));
 	}
-	async sum(dim = -1) {
+	sum(dim = -1) {
 		const dstShape = copyTypedArray(this.shape);
 		dstShape[negIndexWrap(dstShape.length, dim)] = 1; // reducing down this dimension
-		const dst = await Tensor.empty(dstShape, this.dtype);
-		await Tensor.sum(dst, this, dim);
+		const dst = Tensor.empty(dstShape, this.dtype);
+		Tensor.sum(dst, this, dim);
 		return dst;
 	}
 
@@ -595,12 +595,12 @@ export class Tensor {
 	 * Softmax across the dim
 	 * @todo implement online softmax kernel
 	 * @param {number} dim
-	 * @returns {Promise<Tensor>}
+	 * @returns {Tensor}
 	 */
-	async softmax(dim = -1) {
-		const exp = await this.exp();
-		const summed = await exp.sum(dim);
-		const softmax = await exp.div(summed.expand(exp.shape)); // e_i / sum(e)
+	softmax(dim = -1) {
+		const exp = this.exp();
+		const summed = exp.sum(dim);
+		const softmax = exp.div(summed.expand(exp.shape)); // e_i / sum(e)
 		summed.free();
 		exp.free();
 		return softmax;
@@ -613,7 +613,7 @@ export class Tensor {
 	 * @param {Tensor} srcB b in a+b
 	 * @param {string} op wgsl op
 	 */
-	static async _elementWiseBinaryOp(dst, srcA, srcB, op) {
+	static _elementWiseBinaryOp(dst, srcA, srcB, op) {
 		assert(arrIsSame(srcA.shape, srcB.shape), "srcA and srcB must have the same shape");
 		assert(arrIsSame(dst.shape, srcB.shape), "dst, srcA, and srcB, must have the same shape");
 
@@ -640,16 +640,16 @@ export class Tensor {
 			)
 			.getFunction("main");
 
-		await elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
+		elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
 	}
-	async _elementWiseBinaryOp(other, BinaryOpStaticMethod) {
+	_elementWiseBinaryOp(other, BinaryOpStaticMethod) {
 		let allocatedOther = false;
 		if (typeof other === "number") {
-			other = await Tensor.tensor([other], this.shape, this.dtype);
+			other = Tensor.tensor([other], this.shape, this.dtype);
 			allocatedOther = true;
 		}
-		const dst = await Tensor.empty(other.shape, other.dtype);
-		await BinaryOpStaticMethod(dst, this, other);
+		const dst = Tensor.empty(other.shape, other.dtype);
+		BinaryOpStaticMethod(dst, this, other);
 		if (allocatedOther) other.free();
 		return dst;
 	}
@@ -660,10 +660,10 @@ export class Tensor {
 	 * @param {Tensor} srcA a in a+b
 	 * @param {Tensor} srcB b in a+b
 	 */
-	static async add(dst, srcA, srcB) {
-		await Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]+srcB[srcBIdx]`);
+	static add(dst, srcA, srcB) {
+		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]+srcB[srcBIdx]`);
 	}
-	async add(other) {
+	add(other) {
 		return this._elementWiseBinaryOp(other, Tensor.add);
 	}
 
@@ -673,7 +673,7 @@ export class Tensor {
 	 * @param {Tensor} src dst = dst + src
 	 * @param {string} op wgsl op
 	 */
-	static async _elementWiseBinaryOpInplace(dst, src, op) {
+	static _elementWiseBinaryOpInplace(dst, src, op) {
 		assert(arrIsSame(dst.shape, src.shape), "dst, src, must have the same shape");
 
 		const LENGTH = length(dst.shape);
@@ -697,14 +697,14 @@ export class Tensor {
 			)
 			.getFunction("main");
 
-		await elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+		elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
 	}
-	async addInplace(other) {
-		await Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] += src[srcIdx]`);
+	addInplace(other) {
+		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] += src[srcIdx]`);
 		return this;
 	}
-	async subInplace(other) {
-		await Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] -= src[srcIdx]`);
+	subInplace(other) {
+		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] -= src[srcIdx]`);
 		return this;
 	}
 
@@ -714,10 +714,10 @@ export class Tensor {
 	 * @param {Tensor} srcA a in a-b
 	 * @param {Tensor} srcB b in a-b
 	 */
-	static async sub(dst, srcA, srcB) {
-		await Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]-srcB[srcBIdx]`);
+	static sub(dst, srcA, srcB) {
+		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]-srcB[srcBIdx]`);
 	}
-	async sub(other) {
+	sub(other) {
 		return this._elementWiseBinaryOp(other, Tensor.sub);
 	}
 
@@ -727,10 +727,10 @@ export class Tensor {
 	 * @param {Tensor} srcA a in a*b
 	 * @param {Tensor} srcB b in a*b
 	 */
-	static async mul(dst, srcA, srcB) {
-		await Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]*srcB[srcBIdx]`);
+	static mul(dst, srcA, srcB) {
+		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]*srcB[srcBIdx]`);
 	}
-	async mul(other) {
+	mul(other) {
 		return this._elementWiseBinaryOp(other, Tensor.mul);
 	}
 
@@ -740,10 +740,10 @@ export class Tensor {
 	 * @param {Tensor} srcA a in a/b
 	 * @param {Tensor} srcB b in a/b
 	 */
-	static async div(dst, srcA, srcB) {
-		await Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]/srcB[srcBIdx]`);
+	static div(dst, srcA, srcB) {
+		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]/srcB[srcBIdx]`);
 	}
-	async div(other) {
+	div(other) {
 		return this._elementWiseBinaryOp(other, Tensor.div);
 	}
 
@@ -753,10 +753,10 @@ export class Tensor {
 	 * @param {Tensor} srcA a in a^b
 	 * @param {Tensor} srcB b in a^b
 	 */
-	static async pow(dst, srcA, srcB) {
-		await Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `${dst.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])))`);
+	static pow(dst, srcA, srcB) {
+		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `${dst.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])))`);
 	}
-	async pow(other) {
+	pow(other) {
 		return this._elementWiseBinaryOp(other, Tensor.pow);
 	}
 
@@ -767,7 +767,7 @@ export class Tensor {
 	 * @param {Tensor} srcA
 	 * @param {Tensor} srcB
 	 */
-	static async matmul(dst, srcA, srcB) {
+	static matmul(dst, srcA, srcB) {
 		assert(srcA.shape.length === 2 && srcB.shape.length === 2 && dst.shape.length === 2, "tensors are matrix shaped");
 		assert(srcA.shape.at(-1) === srcB.shape.at(0), "Inner dimension must be the same");
 		assert(dst.shape[0] === srcA.shape[0] && dst.shape[1] === srcB.shape[1], "output dimension lines up");
@@ -804,16 +804,16 @@ export class Tensor {
 			.getFunction("main");
 
 		const workgroups = [numWorkgroups(dst.shape[0], xThreads), numWorkgroups(dst.shape[1], yThreads)];
-		await matmul(workgroups, dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
+		matmul(workgroups, dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
 	}
-	async matmul(other) {
-		const dst = await Tensor.empty([this.shape[0], other.shape[1]]);
-		await Tensor.matmul(dst, this, other);
+	matmul(other) {
+		const dst = Tensor.empty([this.shape[0], other.shape[1]]);
+		Tensor.matmul(dst, this, other);
 		return dst;
 	}
 
-	async relu() {
-		const dst = await Tensor.empty(this.shape, this.dtype);
+	relu() {
+		const dst = Tensor.empty(this.shape, this.dtype);
 		Tensor._elementWiseUnaryOp(dst, this, /*wgsl*/ `dst[dstIdx] = max(src[srcIdx], 0)`);
 		return dst;
 	}
@@ -882,7 +882,7 @@ export class GPU {
 	 * @param {GPUBufferUsage} usage
 	 * @returns {Promise<GPUBuffer>}
 	 */
-	async memAlloc(bytes, usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC) {
+	memAlloc(bytes, usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC) {
 		assert(bytes > 0);
 		const buffer = this.device.createBuffer({
 			size: bytes,
@@ -890,7 +890,7 @@ export class GPU {
 		});
 		return buffer;
 	}
-	async memcpyHostToDevice(gpuBuffer, cpuBuffer) {
+	memcpyHostToDevice(gpuBuffer, cpuBuffer) {
 		this.device.queue.writeBuffer(gpuBuffer, 0, cpuBuffer, 0);
 	}
 	async memcpyDeviceToHost(hostBuffer, deviceBuffer) {
@@ -909,7 +909,7 @@ export class GPU {
 
 	// this function may or may not leak. idk
 	async mapGPUToCPU(gpuSrcBuffer, TypedArray = Float32Array) {
-		const tempDstBuffer = await this.memAlloc(gpuSrcBuffer.size, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
+		const tempDstBuffer = this.memAlloc(gpuSrcBuffer.size, GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ);
 		const copyEncoder = this.device.createCommandEncoder();
 		copyEncoder.copyBufferToBuffer(gpuSrcBuffer, 0, tempDstBuffer, 0, gpuSrcBuffer.size);
 		this.device.queue.submit([copyEncoder.finish()]);
@@ -940,7 +940,7 @@ export class SourceModule {
 			},
 		});
 		const bindGroupLayout = computePipeline.getBindGroupLayout(0);
-		return async (workgroups, ...bindings) => {
+		return (workgroups, ...bindings) => {
 			assert(workgroups !== undefined);
 
 			const bindGroup = this.device.createBindGroup({
@@ -964,7 +964,7 @@ export class SourceModule {
 				binding,
 				resource: { buffer },
 			}));
-			await gpuFunc(workgroups, ...inferredBindingsFromBuffers);
+			gpuFunc(workgroups, ...inferredBindingsFromBuffers);
 		};
 	}
 	/**
@@ -976,7 +976,7 @@ export class SourceModule {
 	 *
 	 * @param {string} name
 	 * @param {boolean?} explicitBindings
-	 * @returns {async(workgroups: number[], ...bindings: {binding: number, resource: {buffer: GPUBuffer}}[] | GPUBuffer[]) => void}
+	 * @returns {(workgroups: number[], ...bindings: {binding: number, resource: {buffer: GPUBuffer}}[] | GPUBuffer[]) => void}
 	 */
 	getFunction(name, explicitBindings = false) {
 		return explicitBindings ? this.getFunctionExplicitBindings(name) : this.getFunctionOnlyBuffers(name);

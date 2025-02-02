@@ -25,9 +25,9 @@ const BACKWARDS_UNARY_OPS = {
 		return [drda];
 	},
 	[SQUARE_OP]: ([a], resultGrad) => {
-		const drda = async () => {
-			const twoA = await a.mul(2);
-			const res = await resultGrad.mul(twoA);
+		const drda = () => {
+			const twoA = a.mul(2);
+			const res = resultGrad.mul(twoA);
 			twoA.free();
 			return res;
 		};
@@ -154,7 +154,7 @@ export class Lazy {
 	/**
 	 * @returns {Promise<Tensor>}
 	 */
-	async forward() {
+	forward() {
 		if (this.OP_CODE === TENSOR_OP) return this.tensor;
 
 		// Evaluate each argument
@@ -167,14 +167,14 @@ export class Lazy {
 				tensorArgs[i] = childArg;
 			} else {
 				// but if it is a tensor from an operation, keep backtracking
-				tensorArgs[i] = await childArg.forward();
+				tensorArgs[i] = childArg.forward();
 			}
 		}
 
 		// use the arguments to evaluate this function
 		const op = this._getOpFunc();
 		if (this.tensor) this.tensor.free(); // free whatever memory was in the result from before
-		this.tensor = await op(tensorArgs, ...this.opArgs);
+		this.tensor = op(tensorArgs, ...this.opArgs);
 
 		return this.tensor;
 	}
@@ -183,19 +183,19 @@ export class Lazy {
 	 * TODO: FIX THE ACCUMULATION WEBGPU BUG
 	 * @param {Tensor} newGrad
 	 */
-	async _accumulateGradient(newGrad) {
+	_accumulateGradient(newGrad) {
 		if (this.grad === undefined) {
-			this.grad = await Tensor.fill(0, this.tensor.shape, this.tensor.dtype);
+			this.grad = Tensor.fill(0, this.tensor.shape, this.tensor.dtype);
 		}
 		this.grad.addInplace(newGrad); // this.grad += newGrad
 	}
 
-	async backward() {
+	backward() {
 		assert(this.tensor, "result needs to be evaluated");
 		assert(arrIsSame(new ShapeTypedArray(this.tensor.shape.length).fill(1), this.tensor.shape), "Needs to be called on a reduce value (shape dimensions all 1)");
 
 		/** @type {(lazyTensorOp: Lazy) => Promise<void>} */
-		const _recurBackward = async (lazyTensorResult) => {
+		const _recurBackward = (lazyTensorResult) => {
 			assert(lazyTensorResult.tensor, "result needs to be evaluated");
 
 			// this function computes grads for children, so if no children, no more to compute!
@@ -214,20 +214,20 @@ export class Lazy {
 				if (typeof child === "number" || child.requiresGrad === false) continue;
 
 				// backpropagate
-				const childGrad = await computeGrad();
-				await child._accumulateGradient(childGrad);
-				await _recurBackward(child);
+				const childGrad = computeGrad();
+				child._accumulateGradient(childGrad);
+				_recurBackward(child);
 			}
 		};
 
-		const gradItself = await Tensor.fill(1, this.tensor.shape, this.tensor.dtype);
-		await this._accumulateGradient(gradItself);
-		await _recurBackward(this);
+		const gradItself = Tensor.fill(1, this.tensor.shape, this.tensor.dtype);
+		this._accumulateGradient(gradItself);
+		_recurBackward(this);
 	}
 
-	async zeroGrad() {
+	zeroGrad() {
 		if (!this.grad || !this.requiresGrad) return;
-		await this.grad.fillInplace(0);
+		this.grad.fillInplace(0);
 		for (let i = 0; i < this.childArgs.length; i++) {
 			if (typeof this.childArgs[i] !== "number") this.childArgs[i].zeroGrad();
 		}
@@ -267,8 +267,8 @@ export class OptimSGD {
 		for (const p of this.params) {
 			assert(p.grad && p.tensor, "Can update data with gradient.");
 
-			const scaledGrad = await p.grad.mul(this.lr);
-			await p.tensor.subInplace(scaledGrad);
+			const scaledGrad = p.grad.mul(this.lr);
+			p.tensor.subInplace(scaledGrad);
 			scaledGrad.free();
 		}
 	}
