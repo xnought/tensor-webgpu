@@ -357,6 +357,336 @@ export class Tensor {
 	}
 
 	/**
+	 * Applies operation elementwise in place
+	 * @param {Tensor} dst
+	 * @param {string} op wgsl line where you set dst given, dstIdx
+	 */
+	static _elementWiseUnaryOpInplace(dst, op) {
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+		const unaryOp = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					${op};
+				}
+			}
+			`
+			)
+			.getFunction("main");
+
+		unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer);
+	}
+
+	_elementWiseUnaryOpInplace(op) {
+		Tensor._elementWiseUnaryOpInplace(this, /*wgsl*/ op);
+		return this;
+	}
+
+	/**
+	 * Applies operation elementwise
+	 * @param {Tensor} dst
+	 * @param {Tensor} src
+	 * @param {string} op wgsl line where you set dst given, dstIdx, src, and srcIdx.
+	 */
+	static _elementWiseUnaryOp(dst, src, op) {
+		assert(arrIsSame(dst.shape, src.shape), "dst must have shape as src");
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+		const unaryOp = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					${op};
+				}
+			}
+			`
+			)
+			.getFunction("main");
+
+		unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+	}
+	_elementWiseUnaryOp(op) {
+		const dst = Tensor.empty(this.shape, this.dtype);
+		Tensor._elementWiseUnaryOp(dst, this, op);
+		return dst;
+	}
+
+	/**
+	 * Sum over across the last dimension
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} src what values are raised to the power
+	 * @param {number|null} dim defaults to null.
+	 */
+	static sumLastDimension(dst, src) {
+		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
+		assert(dst.shape.at(-1) === 1, "dimension we sum over should be 1 in dst");
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+
+		const sum = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
+
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let baseSrcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -2)};
+					let baseDstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -2)};
+					var summed = ${dtype}(0);
+					for(var i: u32 = 0; i < ${src.shape.at(-1)}; i++) {
+						summed += src[baseSrcIdx + i*${src.strides.at(-1)}];
+					}
+					dst[baseDstIdx] = summed;
+				}
+			}`
+			)
+			.getFunction("main");
+
+		// Call the gpu kernel
+		sum([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+
+		return dst;
+	}
+
+	/**
+	 * Sum over across the last dimension
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} src what values are raised to the power
+	 * @param {number|null} dim
+	 */
+	static sum(dst, src, dim = -1) {
+		// Shove the dimension we want to the end
+		const idxs = new Uint8Array(src.shape.length).fill(0).map((_, i) => i);
+		dim = negIndexWrap(src.shape.length, dim);
+		const end = src.shape.length - 1;
+		swapItems(idxs, dim, end); // said shoving
+
+		Tensor.sumLastDimension(dst.transpose(idxs), src.transpose(idxs));
+	}
+
+	/**
+	 * Elementwise kernel generator
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a+b
+	 * @param {Tensor} srcB b in a+b
+	 * @param {string} op wgsl op
+	 */
+	static _elementWiseBinaryOp(dst, srcA, srcB, op) {
+		assert(arrIsSame(srcA.shape, srcB.shape), "srcA and srcB must have the same shape");
+		assert(arrIsSame(dst.shape, srcB.shape), "dst, srcA, and srcB, must have the same shape");
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+
+		const elementOp = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> srcA: array<${dtype}>;
+			@group(0) @binding(2) var<storage, read> srcB: array<${dtype}>;
+
+		 	@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					let srcAIdx = ${wgslBaseIdx(srcA.shape, srcA.strides, "gid.x", -1)};
+					let srcBIdx = ${wgslBaseIdx(srcB.shape, srcB.strides, "gid.x", -1)};
+					dst[dstIdx] = ${op};
+				}
+			}`
+			)
+			.getFunction("main");
+
+		elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
+	}
+	_elementWiseBinaryOp(other, op) {
+		let allocatedOther = false;
+		if (typeof other === "number") {
+			other = Tensor.tensor([other], this.shape, this.dtype);
+			allocatedOther = true;
+		}
+		const dst = Tensor.empty(other.shape, other.dtype);
+		Tensor._elementWiseBinaryOp(dst, this, other, op);
+		if (allocatedOther) other.free();
+		return dst;
+	}
+
+	/**
+	 * Elementwise kernel generator in place accumulation!
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} src dst = dst + src
+	 * @param {string} op wgsl op
+	 */
+	static _elementWiseBinaryOpInplace(dst, src, op) {
+		assert(arrIsSame(dst.shape, src.shape), "dst, src, must have the same shape");
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+
+		const elementOp = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
+
+		 	@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
+					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
+					${op};
+				}
+			}`
+			)
+			.getFunction("main");
+
+		elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+	}
+
+	/**
+	 * Add together elementwise two tensors
+	 * @param {Tensor} dst result is stored
+	 * @param {Tensor} srcA a in a+b
+	 * @param {Tensor} srcB b in a+b
+	 */
+	add(other) {
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]+srcB[srcBIdx]`);
+	}
+
+	/**
+	 * Subtract together elementwise two tensors
+	 * @param {Tensor} other
+	 * @returns {Tensor}
+	 */
+	sub(other) {
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]-srcB[srcBIdx]`);
+	}
+
+	/**
+	 * Multiply together elementwise two tensors
+	 * @param {Tensor} other
+	 * @returns {Tensor}
+	 */
+	mul(other) {
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]*srcB[srcBIdx]`);
+	}
+
+	/**
+	 * Divide together elementwise two tensors
+	 * @param {Tensor} other
+	 * @returns {Tensor}
+	 */
+	div(other) {
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `srcA[srcAIdx]/srcB[srcBIdx]`);
+	}
+
+	/**
+	 * Power together elementwise two tensors a^b
+	 * @param {Tensor} other
+	 * @returns {Tensor}
+	 */
+	pow(other) {
+		return this._elementWiseBinaryOp(other, /*wgsl*/ `${this.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])))`);
+	}
+
+	/**
+	 * +=
+	 * @param {Tensor} other
+	 * @returns {Tensor}
+	 */
+	add_(other) {
+		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] += src[srcIdx]`);
+		return this;
+	}
+
+	/**
+	 * -=
+	 * @param {Tensor} other
+	 * @returns {Tensor}
+	 */
+	sub_(other) {
+		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] -= src[srcIdx]`);
+		return this;
+	}
+
+	/**
+	 * Sum across the dimension
+	 * @param {number} dim
+	 * @returns {Tensor}
+	 */
+	sum(dim = -1) {
+		const dstShape = copyTypedArray(this.shape);
+		dstShape[negIndexWrap(dstShape.length, dim)] = 1; // reducing down this dimension
+		const dst = Tensor.empty(dstShape, this.dtype);
+		Tensor.sum(dst, this, dim);
+		return dst;
+	}
+
+	/**
+	 * Softmax across the dim
+	 * @todo implement online softmax kernel
+	 * @param {number} dim
+	 * @returns {Tensor}
+	 */
+	softmax(dim = -1) {
+		const exp = this.exp();
+		const summed = exp.sum(dim);
+		const softmax = exp.div(summed.expand(exp.shape)); // e_i / sum(e)
+		summed.free();
+		exp.free();
+		return softmax;
+	}
+
+	fillInplace(fillValue) {
+		return this._elementWiseUnaryOpInplace(/*wgsl*/ `dst[dstIdx] = ${this.dtype}(${fillValue})`);
+	}
+
+	/**
+	 * Copies the current tensor contiguously (so even an transposed data, will be shoved together)
+	 * Main difference between this and .copy() is we recompute strides here rather than copying
+	 * @returns {Tensor}
+	 */
+	contiguous() {
+		return this._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = src[srcIdx]`);
+	}
+
+	/**
+	 * e^(x)
+	 * @returns {Tensor}
+	 */
+	exp() {
+		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = exp(src[srcIdx])`);
+	}
+
+	/**
+	 * ReLU
+	 * @returns {Tensor}
+	 */
+	relu() {
+		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = max(src[srcIdx], 0)`);
+	}
+
+	/**
 	 * Transposes the first and last dimensions of the tensor
 	 * @todo implement permuting over different dimensions
 	 * @returns {Tensor}
@@ -426,341 +756,6 @@ export class Tensor {
 	}
 
 	/**
-	 * Applies operation elementwise in place
-	 * @param {Tensor} dst
-	 * @param {string} op wgsl line where you set dst given, dstIdx
-	 */
-	static _elementWiseUnaryOpInplace(dst, op) {
-		const LENGTH = length(dst.shape);
-		const THREADS_PER_WORKGROUP = 256;
-		const dtype = dst.dtype;
-		const unaryOp = gpu
-			.SourceModule(
-				/*wgsl*/ `
-			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
-			fn main(@builtin(global_invocation_id) gid : vec3u) {
-				if(gid.x < ${LENGTH}) {
-					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
-					${op};
-				}
-			}
-			`
-			)
-			.getFunction("main");
-
-		unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer);
-	}
-
-	/**
-	 * Applies operation elementwise
-	 * @param {Tensor} dst
-	 * @param {Tensor} src
-	 * @param {string} op wgsl line where you set dst given, dstIdx, src, and srcIdx.
-	 */
-	static _elementWiseUnaryOp(dst, src, op) {
-		assert(arrIsSame(dst.shape, src.shape), "dst must have shape as src");
-
-		const LENGTH = length(dst.shape);
-		const THREADS_PER_WORKGROUP = 256;
-		const dtype = dst.dtype;
-		const unaryOp = gpu
-			.SourceModule(
-				/*wgsl*/ `
-			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
-			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
-			fn main(@builtin(global_invocation_id) gid : vec3u) {
-				if(gid.x < ${LENGTH}) {
-					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
-					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
-					${op};
-				}
-			}
-			`
-			)
-			.getFunction("main");
-
-		unaryOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
-	}
-
-	fillInplace(fillValue) {
-		Tensor._elementWiseUnaryOpInplace(this, /*wgsl*/ `dst[dstIdx] = ${this.dtype}(${fillValue})`);
-		return this;
-	}
-
-	/**
-	 * Copies the values
-	 * @param {Tensor} dst
-	 * @param {Tensor} src
-	 */
-	static contiguous(dst, src) {
-		Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = src[srcIdx]`);
-	}
-
-	/**
-	 * exp the values
-	 * @param {Tensor} dst
-	 * @param {Tensor} src
-	 */
-	static exp(dst, src) {
-		Tensor._elementWiseUnaryOp(dst, src, /*wgsl*/ `dst[dstIdx] = exp(src[srcIdx])`);
-	}
-
-	/**
-	 * Copies the current tensor contiguously (so even an transposed data, will be shoved together)
-	 * Main difference between this and .copy() is we recompute strides here rather than copying
-	 * @returns {Tensor}
-	 */
-	contiguous() {
-		const dst = Tensor.empty(this.shape, this.dtype);
-		Tensor.contiguous(dst, this);
-		return dst;
-	}
-
-	/**
-	 * @returns {Tensor}
-	 */
-	exp() {
-		const dst = Tensor.empty(this.shape, this.dtype);
-		Tensor.exp(dst, this);
-		return dst;
-	}
-
-	/**
-	 * Sum over across the last dimension
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} src what values are raised to the power
-	 * @param {number|null} dim defaults to null.
-	 */
-	static sumLastDimension(dst, src) {
-		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
-		assert(dst.shape.at(-1) === 1, "dimension we sum over should be 1 in dst");
-
-		const LENGTH = length(dst.shape);
-		const THREADS_PER_WORKGROUP = 256;
-		const dtype = dst.dtype;
-
-		const sum = gpu
-			.SourceModule(
-				/*wgsl*/ `
-			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
-
-			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
-			fn main(@builtin(global_invocation_id) gid : vec3u) {
-				if(gid.x < ${LENGTH}) {
-					let baseSrcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -2)};
-					let baseDstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -2)};
-					var summed = ${dtype}(0);
-					for(var i: u32 = 0; i < ${src.shape.at(-1)}; i++) {
-						summed += src[baseSrcIdx + i*${src.strides.at(-1)}];
-					}
-					dst[baseDstIdx] = summed;
-				}
-			}`
-			)
-			.getFunction("main");
-
-		// Call the gpu kernel
-		sum([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
-
-		return dst;
-	}
-
-	/**
-	 * Sum over across the last dimension
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} src what values are raised to the power
-	 * @param {number|null} dim
-	 */
-	static sum(dst, src, dim = -1) {
-		// Shove the dimension we want to the end
-		const idxs = new Uint8Array(src.shape.length).fill(0).map((_, i) => i);
-		dim = negIndexWrap(src.shape.length, dim);
-		const end = src.shape.length - 1;
-		swapItems(idxs, dim, end); // said shoving
-
-		Tensor.sumLastDimension(dst.transpose(idxs), src.transpose(idxs));
-	}
-	sum(dim = -1) {
-		const dstShape = copyTypedArray(this.shape);
-		dstShape[negIndexWrap(dstShape.length, dim)] = 1; // reducing down this dimension
-		const dst = Tensor.empty(dstShape, this.dtype);
-		Tensor.sum(dst, this, dim);
-		return dst;
-	}
-
-	/**
-	 * Softmax across the dim
-	 * @todo implement online softmax kernel
-	 * @param {number} dim
-	 * @returns {Tensor}
-	 */
-	softmax(dim = -1) {
-		const exp = this.exp();
-		const summed = exp.sum(dim);
-		const softmax = exp.div(summed.expand(exp.shape)); // e_i / sum(e)
-		summed.free();
-		exp.free();
-		return softmax;
-	}
-
-	/**
-	 * Elementwise kernel generator
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} srcA a in a+b
-	 * @param {Tensor} srcB b in a+b
-	 * @param {string} op wgsl op
-	 */
-	static _elementWiseBinaryOp(dst, srcA, srcB, op) {
-		assert(arrIsSame(srcA.shape, srcB.shape), "srcA and srcB must have the same shape");
-		assert(arrIsSame(dst.shape, srcB.shape), "dst, srcA, and srcB, must have the same shape");
-
-		const LENGTH = length(dst.shape);
-		const THREADS_PER_WORKGROUP = 256;
-		const dtype = dst.dtype;
-
-		const elementOp = gpu
-			.SourceModule(
-				/*wgsl*/ `
-			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@group(0) @binding(1) var<storage, read> srcA: array<${dtype}>;
-			@group(0) @binding(2) var<storage, read> srcB: array<${dtype}>;
-
-		 	@compute @workgroup_size(${THREADS_PER_WORKGROUP})
-		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
-				if(gid.x < ${LENGTH}) {
-					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
-					let srcAIdx = ${wgslBaseIdx(srcA.shape, srcA.strides, "gid.x", -1)};
-					let srcBIdx = ${wgslBaseIdx(srcB.shape, srcB.strides, "gid.x", -1)};
-					dst[dstIdx] = ${op};
-				}
-			}`
-			)
-			.getFunction("main");
-
-		elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
-	}
-	_elementWiseBinaryOp(other, BinaryOpStaticMethod) {
-		let allocatedOther = false;
-		if (typeof other === "number") {
-			other = Tensor.tensor([other], this.shape, this.dtype);
-			allocatedOther = true;
-		}
-		const dst = Tensor.empty(other.shape, other.dtype);
-		BinaryOpStaticMethod(dst, this, other);
-		if (allocatedOther) other.free();
-		return dst;
-	}
-
-	/**
-	 * Add together elementwise two tensors
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} srcA a in a+b
-	 * @param {Tensor} srcB b in a+b
-	 */
-	static add(dst, srcA, srcB) {
-		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]+srcB[srcBIdx]`);
-	}
-	add(other) {
-		return this._elementWiseBinaryOp(other, Tensor.add);
-	}
-
-	/**
-	 * Elementwise kernel generator in place accumulation!
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} src dst = dst + src
-	 * @param {string} op wgsl op
-	 */
-	static _elementWiseBinaryOpInplace(dst, src, op) {
-		assert(arrIsSame(dst.shape, src.shape), "dst, src, must have the same shape");
-
-		const LENGTH = length(dst.shape);
-		const THREADS_PER_WORKGROUP = 256;
-		const dtype = dst.dtype;
-
-		const elementOp = gpu
-			.SourceModule(
-				/*wgsl*/ `
-			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
-			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
-
-		 	@compute @workgroup_size(${THREADS_PER_WORKGROUP})
-		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
-				if(gid.x < ${LENGTH}) {
-					let dstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -1)};
-					let srcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -1)};
-					${op};
-				}
-			}`
-			)
-			.getFunction("main");
-
-		elementOp([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
-	}
-	addInplace(other) {
-		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] += src[srcIdx]`);
-		return this;
-	}
-	subInplace(other) {
-		Tensor._elementWiseBinaryOpInplace(this, other, /*wgsl*/ `dst[dstIdx] -= src[srcIdx]`);
-		return this;
-	}
-
-	/**
-	 * Subtract together elementwise two tensors
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} srcA a in a-b
-	 * @param {Tensor} srcB b in a-b
-	 */
-	static sub(dst, srcA, srcB) {
-		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]-srcB[srcBIdx]`);
-	}
-	sub(other) {
-		return this._elementWiseBinaryOp(other, Tensor.sub);
-	}
-
-	/**
-	 * Multiply together elementwise two tensors
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} srcA a in a*b
-	 * @param {Tensor} srcB b in a*b
-	 */
-	static mul(dst, srcA, srcB) {
-		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]*srcB[srcBIdx]`);
-	}
-	mul(other) {
-		return this._elementWiseBinaryOp(other, Tensor.mul);
-	}
-
-	/**
-	 * Divide together elementwise two tensors
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} srcA a in a/b
-	 * @param {Tensor} srcB b in a/b
-	 */
-	static div(dst, srcA, srcB) {
-		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `srcA[srcAIdx]/srcB[srcBIdx]`);
-	}
-	div(other) {
-		return this._elementWiseBinaryOp(other, Tensor.div);
-	}
-
-	/**
-	 * raise to the power elementwise two tensors
-	 * @param {Tensor} dst result is stored
-	 * @param {Tensor} srcA a in a^b
-	 * @param {Tensor} srcB b in a^b
-	 */
-	static pow(dst, srcA, srcB) {
-		Tensor._elementWiseBinaryOp(dst, srcA, srcB, /*wgsl*/ `${dst.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])))`);
-	}
-	pow(other) {
-		return this._elementWiseBinaryOp(other, Tensor.pow);
-	}
-
-	/**
 	 * Matrix multiply two matrix shaped tensors
 	 * @todo extend to more than just 2 dims
 	 * @param {Tensor} dst
@@ -807,14 +802,8 @@ export class Tensor {
 		matmul(workgroups, dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
 	}
 	matmul(other) {
-		const dst = Tensor.empty([this.shape[0], other.shape[1]]);
+		const dst = Tensor.empty([this.shape[0], other.shape[1]], this.dtype);
 		Tensor.matmul(dst, this, other);
-		return dst;
-	}
-
-	relu() {
-		const dst = Tensor.empty(this.shape, this.dtype);
-		Tensor._elementWiseUnaryOp(dst, this, /*wgsl*/ `dst[dstIdx] = max(src[srcIdx], 0)`);
 		return dst;
 	}
 

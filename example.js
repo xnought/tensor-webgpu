@@ -11,7 +11,7 @@ async function main() {
 	// await mnistExample();
 	// await reluExample();
 	// await softmaxExample();
-	await linearRegressionInterceptExample();
+	// await linearRegressionInterceptExample();
 	// await mulBackwardExample();
 	// await scalarForwardExample();
 	// await numberBinaryOpExample();
@@ -33,9 +33,40 @@ async function main() {
 	// await inverseIndexing31();
 }
 
+function linearWeights(inNeurons, outNeurons) {
+	const w = Lazy.tensor(Tensor.fill(0, [inNeurons, outNeurons]), true);
+	const b = Lazy.tensor(Tensor.fill(0, [1, outNeurons]), true);
+	return [w, b];
+}
+
+/**
+ * Relu model mnist MLP
+ * @param {*} x
+ * @param {*} y
+ * @param {*} layers
+ * @param {*} batches
+ * @returns {Lazy}
+ */
+function createClassifierMLP(x, layers = [728, 128], batches = 32) {
+	for (let i = 0; i < layers.length - 1; i++) {
+		const [w, b] = linearWeights(layers[i], layers[i + 1]);
+		x = w
+			.matmul(x)
+			.add(b.expand([batches, b.shape[1]]))
+			.relu(); // relu(wX + b)
+	}
+	const [wOut, bOut] = linearWeights(layers.at(-1), 10);
+	const probs = wOut.matmul(bOut.expand([batches, 10])).softmax(-1); // softmax(wX + b) last layer probs
+	return probs;
+}
+
 async function mnistExample() {
-	const a = Tensor.tensor([-1, 2, 3], [3, 1]);
-	await a.relu().print();
+	const batchSize = 32;
+	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 728]));
+	const model = createClassifierMLP(x, [728, 128], batchSize);
+
+	const yhat = model.forward();
+	await yhat.print();
 }
 
 async function reluExample() {
@@ -49,15 +80,15 @@ async function softmaxExample() {
 }
 
 async function mulBackwardExample() {
-	const y = Lazy.tensor(Tensor.tensor([1, 2, 3, 4], [4, 1]));
+	const y = Lazy.tensor(Tensor.tensor([1, 2, 3, 4], [4, 1]), true);
 	await y.print();
 
 	const mean = y.sum(0).mul(1 / 4);
 
-	await mean.forward();
+	mean.forward();
 	await mean.print();
 
-	await mean.backward();
+	mean.backward();
 	await y.grad.print();
 }
 async function scalarForwardExample() {
@@ -67,25 +98,21 @@ async function scalarForwardExample() {
 	const square = y.square();
 	const summed = square.sum(0);
 
-	await summed.forward();
+	summed.forward();
 
 	await square.print();
 	await summed.print();
 
-	await summed.backward();
+	summed.backward();
 	await y.grad.print();
 }
 async function sumGradExample() {
 	const y = Lazy.tensor(Tensor.tensor([1, 2, 3, 4], [4, 1]));
 	const yhat = Lazy.tensor(Tensor.tensor([1, 0, 3, 1], [4, 1]));
-	const loss = y.add(yhat);
-	await loss.forward(); // now compute everything (the c = a + b)
-	await c.print();
-	await c.backward(); // backprop
-	console.log("a.grad");
-	await a.grad.print();
-	console.log("b.grad");
-	await b.grad.print();
+	const loss = y.add(yhat).sum(0);
+	loss.forward(); // now compute everything (the c = a + b)
+	loss.backward();
+	await loss.grad.print();
 }
 
 async function divExample() {
@@ -376,10 +403,10 @@ async function linearRegressionExample() {
 	const optim = new OptimSGD([w], lr);
 	for (let i = 0; i < iterations; i++) {
 		console.time("iteration" + i);
-		await loss.forward();
-		await loss.zeroGrad();
-		await loss.backward();
-		await optim.update();
+		loss.forward();
+		loss.zeroGrad();
+		loss.backward();
+		optim.update();
 		console.timeEnd("iteration" + i);
 	}
 
