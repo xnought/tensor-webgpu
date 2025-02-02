@@ -86,10 +86,11 @@ function createClassifierMLP(x, layers = [728, 128], batches = 32, classes = 10)
 async function mnistExample() {
 	const batchSize = 32;
 	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 728]));
-	const model = createClassifierMLP(x, [728, 256], batchSize);
+	const yhat = createClassifierMLP(x, [728, 256], batchSize);
 
 	console.time("FORWARD");
-	const yhat = model.forward();
+	yhat.forward();
+	yhat.backward();
 	await yhat.print();
 	console.timeEnd("FORWARD");
 }

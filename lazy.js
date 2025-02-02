@@ -66,6 +66,20 @@ const BACKWARDS_UNARY_OPS = {
 		const drda = () => resultGrad.mul(result);
 		return [drda];
 	},
+	[SOFTMAX_OP]: ([a], result, resultGrad) => {
+		const drda = () => {
+			const res = result._elementWiseBinaryOp(
+				resultGrad,
+				/*wgsl*/ `
+				let s = srcA[srcAIdx];
+				let resultGrad = srcB[srcBIdx];
+				dst[dstIdx] = resultGrad*s*(1-s);
+				`
+			);
+			return res;
+		};
+		return [drda];
+	},
 };
 
 // the second argument (b) may or may not be a number or tensor in elementwise operations (add, sub, pow)
