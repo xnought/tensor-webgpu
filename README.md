@@ -23,8 +23,9 @@ All computation done on the GPU!
   - [x] With intercept
 - [x] Don't compute gradients for leaves for faster
 - [x] tensor.set method for batches
-- [ ] log and exp (then can do softmax and cross-entropy)
-- [ ] relu
+- [x] softmax
+- [x] relu
+- [ ] log
 - [ ] MLP Example
   - [ ] Load MNIST into the browser on CPU
   - [ ] Load batches into GPU and train for iterations

@@ -8,6 +8,7 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
+	// await logExample();
 	// await softmaxBackwardExample();
 	// await reluBackwardExample();
 	await mnistExample();
@@ -33,6 +34,11 @@ async function main() {
 	// await sumExample();
 	// await inverseIndexing();
 	// await inverseIndexing31();
+}
+
+async function logExample() {
+	const a = Tensor.tensor([0.1, 2, 3], [3, 1]);
+	await a.log().print();
 }
 
 async function softmaxBackwardExample() {
@@ -83,16 +89,36 @@ function createClassifierMLP(x, layers = [728, 128], batches = 32, classes = 10)
 	return probs;
 }
 
+/**
+ * y must be onehot encoded
+ * @param {Lazy} yhat
+ * @param {Lazy} y
+ */
+function lossCCE(yhat, y, batchSize = 32) {
+	return yhat
+		.log()
+		.mul(y)
+		.sum(-1)
+		.sum(0)
+		.mul(1 / batchSize);
+}
+
 async function mnistExample() {
 	const batchSize = 32;
 	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 728]));
-	const yhat = createClassifierMLP(x, [728, 256], batchSize);
+	const yhat = createClassifierMLP(x, [728, 256, 128], batchSize);
+	const y = Lazy.tensor(Tensor.fill(0, [batchSize, 10]));
+	const loss = lossCCE(yhat, y, batchSize);
 
 	console.time("FORWARD");
-	yhat.forward();
-	yhat.backward();
-	await yhat.print();
+	loss.forward();
+	await Tensor.gpu.deviceSynchronize();
 	console.timeEnd("FORWARD");
+
+	console.time("BACKWARD");
+	loss.backward();
+	await Tensor.gpu.deviceSynchronize();
+	console.timeEnd("BACKWARD");
 }
 
 async function reluExample() {

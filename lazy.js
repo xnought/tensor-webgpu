@@ -7,9 +7,9 @@ import { arrIsSame, ShapeTypedArray, assert, Tensor, copyTypedArray } from "./te
 /** @typedef {Record<OpCode, BackwardsOpFunc>} BackwardsOpsMap */
 
 // assign each op code an integer (make sure to increment numOps if you add another)
-const NUM_OPS = 13;
+const NUM_OPS = 14;
 /** @type {OpCode[]} */
-const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP, TRANSPOSE_OP, EXPAND_OP, RELU_OP, DIV_OP, EXP_OP, SOFTMAX_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
+const [TENSOR_OP, ADD_OP, SUM_OP, SUB_OP, SQUARE_OP, MUL_OP, MATMUL_OP, TRANSPOSE_OP, EXPAND_OP, RELU_OP, DIV_OP, EXP_OP, SOFTMAX_OP, LOG_OP] = new Array(NUM_OPS).fill(0).map((_, i) => i);
 
 /** @type {OpsMap} */
 const UNARY_OPS = {
@@ -20,6 +20,7 @@ const UNARY_OPS = {
 	[RELU_OP]: ([a]) => a.relu(),
 	[EXP_OP]: ([a]) => a.exp(),
 	[SOFTMAX_OP]: ([a], dim) => a.softmax(dim),
+	[LOG_OP]: ([a]) => a.log(),
 };
 /** @type {BackwardsOpsMap} */
 const BACKWARDS_UNARY_OPS = {
@@ -76,6 +77,15 @@ const BACKWARDS_UNARY_OPS = {
 				dst[dstIdx] = resultGrad*s*(1-s);
 				`
 			);
+			return res;
+		};
+		return [drda];
+	},
+	[LOG_OP]: ([a], result, resultGrad) => {
+		const drda = () => {
+			const oneOverA = a.pow(-1);
+			const res = resultGrad.mul(oneOverA);
+			oneOverA.free();
 			return res;
 		};
 		return [drda];
@@ -156,6 +166,10 @@ export class Lazy {
 	static tensor(t, requiresGrad = false) {
 		return new Lazy(TENSOR_OP, [], [], t, requiresGrad, t.shape);
 	}
+	get shape() {
+		assert(this.tensor, "Tensor must exist to get shape. TODO: implement shape tracker to get around this.");
+		return this.tensor.shape;
+	}
 
 	_unaryOp(OP_CODE, ...opArgs) {
 		return new Lazy(OP_CODE, [this], opArgs, undefined, this.requiresGrad);
@@ -183,6 +197,9 @@ export class Lazy {
 	}
 	relu() {
 		return this._unaryOp(RELU_OP);
+	}
+	log() {
+		return this._unaryOp(LOG_OP);
 	}
 
 	_binaryOp(other, OP_CODE, ...opArgs) {

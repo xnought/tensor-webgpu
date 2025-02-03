@@ -608,7 +608,6 @@ export class Tensor {
 	pow(other) {
 		return this._elementWiseBinaryOp(other, /*wgsl*/ `dst[dstIdx] = ${this.dtype}(pow(f32(srcA[srcAIdx]), f32(srcB[srcBIdx])));`);
 	}
-
 	/**
 	 * +=
 	 * @param {Tensor} other
@@ -691,7 +690,15 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	reciprocal() {
-		return this._elementWiseUnaryOp(other, /*wgsl*/ `dst[dstIdx] = 1/src[srcIdx]`);
+		return this._elementWiseUnaryOp(other, /*wgsl*/ `dst[dstIdx] = 1/src[srcIdx];`);
+	}
+
+	/**
+	 * Natural log
+	 * @returns {Tensor}
+	 */
+	log() {
+		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = log(src[srcIdx]);`);
 	}
 
 	/**
