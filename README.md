@@ -25,12 +25,14 @@ All computation done on the GPU!
 - [x] tensor.set method for batches
 - [x] softmax
 - [x] relu
-- [ ] log
+- [x] log
 - [ ] MLP Example
   - [ ] Load MNIST into the browser on CPU
-  - [ ] Load batches into GPU and train for iterations
-  - [ ] Switch to svelte vite and visualize loss in the browser
-  - [ ] Once done training, have an interactive canvas that takes drawing and outputs probabilities
+  - [ ] Load batches and convert to one-hot
+  - [ ] Overfit on one batch
+  - [ ] Train on subset of train
+  - [ ] Train on full train
+  - [ ] Visualize training in browser
 
 ## Getting Started
 
