@@ -26,6 +26,7 @@ All computation done on the GPU!
 - [x] softmax
 - [x] relu
 - [x] log
+- [ ] Fix softmax grad (do jacobian)
 - [ ] MLP Example
   - [ ] Load MNIST into the browser on CPU
   - [ ] Load batches and convert to one-hot
