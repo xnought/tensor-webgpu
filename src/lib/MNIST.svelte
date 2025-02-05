@@ -64,7 +64,13 @@
 	const lr = 0.1;
 	const maxEpochs = 5;
 	let lossHistory = [];
+	let deviceInfo;
 	onMount(async () => {
+		const adapter = await navigator.gpu.requestAdapter();
+		const device = await adapter.requestDevice();
+		deviceInfo = { vendor: device.adapterInfo.vendor, architecture: device.adapterInfo.architecture };
+		Tensor.setDevice(device);
+
 		const [xCpu, yCpu] = await fetchMnist10k();
 		const x = Lazy.tensor(Tensor.fill(1, [batchSize, 28 * 28]));
 		const [yhat, params] = createClassifierMLP(x, [28 * 28, 128, 128], batchSize);
@@ -99,6 +105,9 @@
 
 {#if loadingData}
 	<div>Loading MNIST Test 10k data...</div>
+{/if}
+{#if deviceInfo}
+	<div>Running on {JSON.stringify(deviceInfo, null, 4)}</div>
 {/if}
 <div>
 	{#each lossHistory as lh}
