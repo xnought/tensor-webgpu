@@ -23,6 +23,16 @@ function length(shape) {
 	return prod;
 }
 
+//  https://stackoverflow.com/questions/25582882/javascript-math-random-normal-distribution-gaussian-bell-curve
+// Standard Normal variate using Box-Muller transform.
+function gaussianRandom(mean = 0, stdev = 1) {
+	const u = 1 - Math.random(); // Converting [0,1) to (0,1]
+	const v = Math.random();
+	const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+	// Transform to the desired mean and standard deviation:
+	return z * stdev + mean;
+}
+
 /**
  * Computes how to enumerate the ndarray
  * @param {Shape} shape
@@ -357,6 +367,21 @@ export class Tensor {
 	}
 
 	/**
+	 * Random normal
+	 * https://stackoverflow.com/questions/25582882/javascript-math-random-normal-distribution-gaussian-bell-curve
+	 * @todo Implement random uniform kernel in GPU only
+	 * @param {Shape} shape
+	 * @param {number} mean defaults to 0
+	 * @param {number} stdev defaults to 1
+	 * @param {DType} dtype
+	 * @returns {Tensor}
+	 */
+	static randn(shape, mean = 0, stdev = 1, dtype = "f32") {
+		const data = new DTypedArray[dtype](length(shape)).fill(0).map((_) => gaussianRandom(mean, stdev));
+		return Tensor.tensor(data, shape, dtype);
+	}
+
+	/**
 	 * Applies operation elementwise in place
 	 * @param {Tensor} dst
 	 * @param {string} op wgsl line where you set dst given, dstIdx
@@ -466,6 +491,15 @@ export class Tensor {
 		return dst;
 	}
 
+	static reduceAnyDimensionGivenLastDimensionFunc(reduceFunc, dst, src, dim = -1) {
+		// Shove the dimension we want to the end
+		const idxs = new Uint8Array(src.shape.length).fill(0).map((_, i) => i);
+		dim = negIndexWrap(src.shape.length, dim);
+		const end = src.shape.length - 1;
+		swapItems(idxs, dim, end); // said shoving
+		reduceFunc(dst.transpose(idxs), src.transpose(idxs));
+	}
+
 	/**
 	 * Sum over across the last dimension
 	 * @param {Tensor} dst result is stored
@@ -473,13 +507,7 @@ export class Tensor {
 	 * @param {number|null} dim
 	 */
 	static sum(dst, src, dim = -1) {
-		// Shove the dimension we want to the end
-		const idxs = new Uint8Array(src.shape.length).fill(0).map((_, i) => i);
-		dim = negIndexWrap(src.shape.length, dim);
-		const end = src.shape.length - 1;
-		swapItems(idxs, dim, end); // said shoving
-
-		Tensor.sumLastDimension(dst.transpose(idxs), src.transpose(idxs));
+		Tensor.reduceAnyDimensionGivenLastDimensionFunc(Tensor.sumLastDimension, dst, src, dim);
 	}
 
 	/**
@@ -641,6 +669,55 @@ export class Tensor {
 		return dst;
 	}
 
+	static maxLastDim(dst, src) {
+		assert(dst.dtype === src.dtype, "dst and src dtypes must match");
+		assert(dst.shape.at(-1) === 1, "dimension we sum over should be 1 in dst");
+
+		const LENGTH = length(dst.shape);
+		const THREADS_PER_WORKGROUP = 256;
+		const dtype = dst.dtype;
+
+		const max = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> src: array<${dtype}>;
+
+			@compute @workgroup_size(${THREADS_PER_WORKGROUP})
+			fn main(@builtin(global_invocation_id) gid : vec3u) {
+				if(gid.x < ${LENGTH}) {
+					let baseSrcIdx = ${wgslBaseIdx(src.shape, src.strides, "gid.x", -2)};
+					let baseDstIdx = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -2)};
+					var max: ${dtype} = src[baseSrcIdx];
+					for(var i: u32 = 0; i < ${src.shape.at(-1)}; i++) {
+						let cur = src[baseSrcIdx + i*${src.strides.at(-1)}];
+						if(cur > max) {
+							max = cur;
+						}
+					}
+					dst[baseDstIdx] = max;
+				}
+			}`
+			)
+			.getFunction("main");
+
+		// Call the gpu kernel
+		max([numWorkgroups(LENGTH, THREADS_PER_WORKGROUP)], dst.gpuBuffer, src.gpuBuffer);
+
+		return dst;
+	}
+
+	static max(dst, src, dim = -1) {
+		Tensor.reduceAnyDimensionGivenLastDimensionFunc(Tensor.maxLastDim, dst, src, dim);
+	}
+	max(dim = -1) {
+		const dstShape = copyTypedArray(this.shape);
+		dstShape[negIndexWrap(dstShape.length, dim)] = 1; // reducing down this dimension
+		const dst = Tensor.empty(dstShape, this.dtype);
+		Tensor.max(dst, this, dim);
+		return dst;
+	}
+
 	/**
 	 * Softmax across the dim
 	 * @todo implement online softmax kernel
@@ -648,9 +725,13 @@ export class Tensor {
 	 * @returns {Tensor}
 	 */
 	softmax(dim = -1) {
-		const exp = this.exp();
+		const max = this.max(dim);
+		const subbed = this.sub(max.expand(this.shape));
+		const exp = subbed.exp(); // e^(x_i-max(x))
 		const summed = exp.sum(dim);
 		const softmax = exp.div(summed.expand(exp.shape)); // e_i / sum(e)
+		max.free();
+		subbed.free();
 		summed.free();
 		exp.free();
 		return softmax;
@@ -695,10 +776,11 @@ export class Tensor {
 
 	/**
 	 * Natural log
+	 * @param {number} eps is added to the inside of log so we don't get infinities near 0
 	 * @returns {Tensor}
 	 */
-	log() {
-		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = log(src[srcIdx]);`);
+	log(eps = 1e-6) {
+		return this._elementWiseUnaryOp(/*wgsl*/ `dst[dstIdx] = log(src[srcIdx] + ${eps});`);
 	}
 
 	/**

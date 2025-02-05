@@ -8,6 +8,8 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
+	// await maxExample();
+	// await mnistExampleOneBatch();
 	// await bmmExample();
 	// await softmaxJacobianExample();
 	// await logExample();
@@ -36,6 +38,11 @@ async function main() {
 	// await sumExample();
 	// await inverseIndexing();
 	// await inverseIndexing31();
+}
+
+async function maxExample() {
+	const a = Tensor.tensor([1, 2, 3, 5, -5, 0], [2, 3]);
+	await a.max(0).print();
 }
 
 async function bmmExample() {
@@ -91,8 +98,10 @@ async function reluBackwardExample() {
 }
 
 function linearWeights(inNeurons, outNeurons) {
-	const w = Lazy.tensor(Tensor.fill(1, [inNeurons, outNeurons]), true);
-	const b = Lazy.tensor(Tensor.fill(1, [1, outNeurons]), true);
+	const mean = 0;
+	const stdev = 0.1;
+	const w = Lazy.tensor(Tensor.randn([inNeurons, outNeurons], mean, stdev), true);
+	const b = Lazy.tensor(Tensor.randn([1, outNeurons], mean, stdev), true);
 	return [w, b];
 }
 
@@ -118,10 +127,8 @@ function createClassifierMLP(x, layers = [728, 128], batches = 32, classes = 10)
 	const [w, b] = linearWeights(layers.at(-1), classes);
 	parameters.push(w);
 	parameters.push(b);
-	const probs = x
-		.matmul(w)
-		.add(b.expand([batches, classes]))
-		.softmax(-1);
+	const logits = x.matmul(w).add(b.expand([batches, classes]));
+	const probs = logits.softmax(-1);
 	return [probs, parameters];
 }
 
@@ -156,38 +163,63 @@ async function fetchMnist10k() {
 		y = j["y"];
 	return [x, y];
 }
-async function mnistExample() {
+async function mnistExampleOneBatch() {
 	const batchSize = 64;
-	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 728]));
-	const [yhat, params] = createClassifierMLP(x, [728, 128], batchSize);
+	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 28 * 28]));
+	const [yhat, params] = createClassifierMLP(x, [28 * 28, 128, 128], batchSize);
 	const y = Lazy.tensor(Tensor.fill(1, [batchSize, 10]));
 	const loss = lossCCE(yhat, y, batchSize);
-	const lr = 1e-3;
+	const lr = 0.1;
 	const optim = new OptimSGD(params, lr);
 
 	const [xCpu, yCpu] = await fetchMnist10k();
-	const flat = (cpu, i, batchSize) => flat2D(cpu.slice(i, i + batchSize));
-	for (let i = 0; i < xCpu.length - batchSize; i += batchSize) {
-		console.time("batch" + i);
-		const xBatch = Tensor.tensor(flat(xCpu, i, batchSize), [batchSize, 728]);
-		const yBatch = Tensor.tensor(flat(yCpu, i, batchSize), [batchSize, 10]);
+	const getBatch = (cpu, i) => flat2D(cpu.slice(i, i + batchSize));
+	x.tensor.setGPUBuffer(getBatch(xCpu, 0));
+	y.tensor.setGPUBuffer(getBatch(yCpu, 0));
 
-		// override the input
-		x.tensor.free();
-		x.tensor = xBatch;
-		y.tensor.free();
-		y.tensor = yBatch;
-
+	for (let i = 0; i < 100; i++) {
 		// forward through the model
 		loss.forward();
-
 		// backprop and update
 		loss.zeroGrad();
 		loss.backward();
 		optim.update();
+
 		const l = await loss.tensor.cpuBuffer();
 		console.log("loss", l[0]);
-		console.timeEnd("batch" + i);
+	}
+}
+async function mnistExample() {
+	const batchSize = 64;
+	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 28 * 28]));
+	const [yhat, params] = createClassifierMLP(x, [28 * 28, 256, 128], batchSize);
+	const y = Lazy.tensor(Tensor.fill(1, [batchSize, 10]));
+	const loss = lossCCE(yhat, y, batchSize);
+	const lr = 1e-2;
+	const optim = new OptimSGD(params, lr);
+
+	const [xCpu, yCpu] = await fetchMnist10k();
+	const getBatch = (cpu, i) => flat2D(cpu.slice(i, i + batchSize));
+	let maxEpochs = 5;
+	for (let epoch = 0; epoch < maxEpochs; epoch++) {
+		console.log("EPOCH" + (epoch + 1));
+		for (let i = 0; i < xCpu.length - batchSize; i += batchSize) {
+			x.tensor.setGPUBuffer(getBatch(xCpu, i));
+			y.tensor.setGPUBuffer(getBatch(yCpu, i));
+
+			// forward through the model
+			loss.forward();
+
+			// backprop and update
+			loss.zeroGrad();
+			loss.backward();
+			optim.update();
+
+			if (i % 10 === 0) {
+				const l = await loss.tensor.cpuBuffer();
+				console.log("loss", l[0]);
+			}
+		}
 	}
 }
 
