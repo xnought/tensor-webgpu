@@ -27,13 +27,12 @@ All computation done on the GPU!
 - [x] relu
 - [x] log
 - [x] Fix softmax grad (do jacobian)
-- [ ] MLP Example
-  - [ ] Load MNIST into the browser on CPU
-  - [ ] Load batches and convert to one-hot
-  - [ ] Overfit on one batch
-  - [ ] Train on subset of train
-  - [ ] Train on full train
-  - [ ] Visualize training in browser
+- [x] MLP Example
+  - [x] Load MNIST into the browser on CPU
+  - [x] Load batches and convert to one-hot
+  - [x] Overfit on one batch
+  - [x] Train on subset of train
+  - [ ] Visualize training in browser and have interactive example
 
 ## Getting Started
 

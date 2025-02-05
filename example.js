@@ -189,6 +189,7 @@ async function mnistExampleOneBatch() {
 		console.log("loss", l[0]);
 	}
 }
+
 async function mnistExample() {
 	const batchSize = 64;
 	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 28 * 28]));
