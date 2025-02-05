@@ -879,7 +879,6 @@ export class Tensor {
 
 	bmm(other) {
 		const dstShape = [...this.shape.slice(0, -2), this.shape.at(-2), other.shape.at(-1)];
-		console.log(dstShape);
 		const dst = Tensor.empty(dstShape);
 		Tensor.bmm(dst, this, other);
 		return dst;

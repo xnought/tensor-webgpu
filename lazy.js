@@ -350,7 +350,7 @@ export class OptimSGD {
 		this.params = params;
 		this.lr = lr;
 	}
-	async update() {
+	update() {
 		for (const p of this.params) {
 			assert(p.grad && p.tensor, "Can update data with gradient.");
 

@@ -91,8 +91,8 @@ async function reluBackwardExample() {
 }
 
 function linearWeights(inNeurons, outNeurons) {
-	const w = Lazy.tensor(Tensor.fill(0, [inNeurons, outNeurons]), true);
-	const b = Lazy.tensor(Tensor.fill(0, [1, outNeurons]), true);
+	const w = Lazy.tensor(Tensor.fill(1, [inNeurons, outNeurons]), true);
+	const b = Lazy.tensor(Tensor.fill(1, [1, outNeurons]), true);
 	return [w, b];
 }
 
@@ -105,19 +105,24 @@ function linearWeights(inNeurons, outNeurons) {
  * @returns {Lazy}
  */
 function createClassifierMLP(x, layers = [728, 128], batches = 32, classes = 10) {
+	let parameters = [];
 	for (let i = 0; i < layers.length - 1; i++) {
 		const [w, b] = linearWeights(layers[i], layers[i + 1]);
+		parameters.push(w);
+		parameters.push(b);
 		x = x
 			.matmul(w)
 			.add(b.expand([batches, layers[i + 1]]))
 			.relu();
 	}
 	const [w, b] = linearWeights(layers.at(-1), classes);
+	parameters.push(w);
+	parameters.push(b);
 	const probs = x
 		.matmul(w)
 		.add(b.expand([batches, classes]))
 		.softmax(-1);
-	return probs;
+	return [probs, parameters];
 }
 
 /**
@@ -131,27 +136,59 @@ function lossCCE(yhat, y, batchSize = 32) {
 		.mul(y)
 		.sum(-1)
 		.sum(0)
-		.mul(1 / batchSize);
+		.mul(-1 / batchSize);
 }
 
+function flat2D(arr2D) {
+	const out = new Float32Array(arr2D.length * arr2D[0].length);
+	for (let i = 0; i < arr2D.length; i++) {
+		for (let j = 0; j < arr2D[0].length; j++) {
+			out[i * arr2D[0].length + j] = arr2D[i][j];
+		}
+	}
+	return out;
+}
+
+async function fetchMnist10k() {
+	const d = await fetch("mnist_test.json");
+	const j = await d.json();
+	const x = j["x"],
+		y = j["y"];
+	return [x, y];
+}
 async function mnistExample() {
-	const batchSize = 1;
-	const x = Lazy.tensor(Tensor.fill(1, [1, 728]));
-	const yhat = createClassifierMLP(x, [728, 256, 128], batchSize);
-	const y = Lazy.tensor(Tensor.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0], [1, 10]));
+	const batchSize = 64;
+	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 728]));
+	const [yhat, params] = createClassifierMLP(x, [728, 128], batchSize);
+	const y = Lazy.tensor(Tensor.fill(1, [batchSize, 10]));
 	const loss = lossCCE(yhat, y, batchSize);
+	const lr = 1e-3;
+	const optim = new OptimSGD(params, lr);
 
-	console.time("FORWARD");
-	loss.forward();
-	await Tensor.gpu.deviceSynchronize();
-	console.timeEnd("FORWARD");
+	const [xCpu, yCpu] = await fetchMnist10k();
+	const flat = (cpu, i, batchSize) => flat2D(cpu.slice(i, i + batchSize));
+	for (let i = 0; i < xCpu.length - batchSize; i += batchSize) {
+		console.time("batch" + i);
+		const xBatch = Tensor.tensor(flat(xCpu, i, batchSize), [batchSize, 728]);
+		const yBatch = Tensor.tensor(flat(yCpu, i, batchSize), [batchSize, 10]);
 
-	console.time("BACKWARD");
-	loss.backward();
-	await Tensor.gpu.deviceSynchronize();
-	console.timeEnd("BACKWARD");
+		// override the input
+		x.tensor.free();
+		x.tensor = xBatch;
+		y.tensor.free();
+		y.tensor = yBatch;
 
-	await loss.print();
+		// forward through the model
+		loss.forward();
+
+		// backprop and update
+		loss.zeroGrad();
+		loss.backward();
+		optim.update();
+		const l = await loss.tensor.cpuBuffer();
+		console.log("loss", l[0]);
+		console.timeEnd("batch" + i);
+	}
 }
 
 async function reluExample() {
