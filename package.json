@@ -1,15 +1,17 @@
 {
-	"name": "tensorscript-example",
-	"private": true,
-	"version": "0.0.0",
-	"type": "module",
-	"scripts": {
-		"dev": "vite",
-		"build": "vite build",
-		"preview": "vite preview"
-	},
-	"devDependencies": {
-		"@webgpu/types": "^0.1.53",
-		"vite": "^6.0.5"
-	}
+  "name": "tensorscript",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@webgpu/types": "^0.1.54",
+    "svelte": "^5.19.6",
+    "vite": "^6.1.0"
+  }
 }

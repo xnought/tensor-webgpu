@@ -1,21 +1,18 @@
 import { Tensor } from "./tensorscript";
 import { Lazy, OptimSGD } from "./lazy";
 
-main();
-
-async function main() {
+export async function main() {
 	const adapter = await navigator.gpu.requestAdapter();
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
-
-	// await maxExample();
+	await maxExample();
 	// await mnistExampleOneBatch();
 	// await bmmExample();
 	// await softmaxJacobianExample();
 	// await logExample();
 	// await softmaxBackwardExample();
 	// await reluBackwardExample();
-	await mnistExample();
+	// await mnistExample();
 	// await reluExample();
 	// await softmaxExample();
 	// await linearRegressionInterceptExample();
