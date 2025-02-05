@@ -8,6 +8,8 @@ async function main() {
 	const device = await adapter.requestDevice();
 	Tensor.setDevice(device);
 
+	// await bmmExample();
+	// await softmaxJacobianExample();
 	// await logExample();
 	// await softmaxBackwardExample();
 	// await reluBackwardExample();
@@ -36,15 +38,44 @@ async function main() {
 	// await inverseIndexing31();
 }
 
+async function bmmExample() {
+	const a = Tensor.tensor([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6], [2, 2, 3]);
+	const b = Tensor.tensor([1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6], [2, 3, 2]);
+	await a.print();
+	await b.print();
+
+	const a0 = Tensor.tensor([1, 2, 3, 4, 5, 6], [2, 3]);
+	const b0 = Tensor.tensor([1, 2, 3, 4, 5, 6], [3, 2]);
+	await a0.print();
+	await b0.print();
+	await a0.matmul(b0).print();
+
+	await a.bmm(b).print();
+}
+
+async function softmaxJacobianExample() {
+	const a = Tensor.tensor([0, 1, -1, 1, 2, 3], [2, 3]);
+	const s = a.softmax(-1);
+	const dst = Tensor.empty([...a.shape, 3]);
+	console.log("a");
+	await a.print();
+	console.log("softmax(a)");
+	await s.print();
+	Tensor._softmaxJacobianLastDim(dst, s);
+	console.log("dsoftmax(a)");
+	await dst.print();
+	await Tensor.fill(10, [2, 1, 3]).bmm(dst).print();
+}
+
 async function logExample() {
 	const a = Tensor.tensor([0.1, 2, 3], [3, 1]);
 	await a.log().print();
 }
 
 async function softmaxBackwardExample() {
-	const x = Lazy.tensor(Tensor.tensor([-1, 1, 0], [3, 1]), true);
-	const softmax = x.softmax(0);
-	const summed = softmax.sum(0);
+	const x = Lazy.tensor(Tensor.tensor([-1, 1, 0], [1, 3]), true);
+	const softmax = x.softmax(-1);
+	const summed = softmax.sum(-1);
 	summed.forward();
 	await softmax.print();
 	summed.backward();
@@ -104,10 +135,10 @@ function lossCCE(yhat, y, batchSize = 32) {
 }
 
 async function mnistExample() {
-	const batchSize = 32;
-	const x = Lazy.tensor(Tensor.fill(1, [batchSize, 728]));
+	const batchSize = 1;
+	const x = Lazy.tensor(Tensor.fill(1, [1, 728]));
 	const yhat = createClassifierMLP(x, [728, 256, 128], batchSize);
-	const y = Lazy.tensor(Tensor.fill(0, [batchSize, 10]));
+	const y = Lazy.tensor(Tensor.tensor([0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0], [1, 10]));
 	const loss = lossCCE(yhat, y, batchSize);
 
 	console.time("FORWARD");
@@ -119,6 +150,8 @@ async function mnistExample() {
 	loss.backward();
 	await Tensor.gpu.deviceSynchronize();
 	console.timeEnd("BACKWARD");
+
+	await loss.print();
 }
 
 async function reluExample() {

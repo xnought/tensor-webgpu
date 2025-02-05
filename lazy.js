@@ -69,14 +69,11 @@ const BACKWARDS_UNARY_OPS = {
 	},
 	[SOFTMAX_OP]: ([a], result, resultGrad) => {
 		const drda = () => {
-			const res = result._elementWiseBinaryOp(
-				resultGrad,
-				/*wgsl*/ `
-				let s = srcA[srcAIdx];
-				let resultGrad = srcB[srcBIdx];
-				dst[dstIdx] = resultGrad*s*(1-s);
-				`
-			);
+			const dsoft = result._softmaxJacobian(); // (B, D, D)
+			const res = resultGrad.unsqueeze(1).bmm(dsoft); // (1, 1, 3) @ (1, 3, 3) -> (1, 1, 3)
+			// TODO: fix this inplace squeeze operation
+			res.shape = result.shape;
+			res.strides = result.strides;
 			return res;
 		};
 		return [drda];

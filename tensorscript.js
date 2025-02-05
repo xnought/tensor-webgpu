@@ -822,6 +822,145 @@ export class Tensor {
 		return dst;
 	}
 
+	/**
+	 * Batched matrix multiply. Iterates over last batched dimension and matmuls the two
+	 * @param {Tensor} dst (B, M, L)
+	 * @param {Tensor} srcA (B, M, N)
+	 * @param {Tensor} srcB (B, N, L)
+	 */
+	static bmm(dst, srcA, srcB) {
+		assert(srcA.shape.at(-1) === srcB.shape.at(-2), "Inner dimension must be the same");
+		assert(dst.shape.at(-2) === srcA.shape.at(-2) && dst.shape.at(-1) === srcB.shape.at(-1), "output dimension lines up");
+
+		const B = length(dst.shape.slice(0, -2));
+		const M = dst.shape.at(-2);
+		const L = dst.shape.at(-1);
+
+		const innerDim = srcA.shape.at(-1);
+		const dtype = dst.dtype;
+		const xThreads = 4,
+			yThreads = 8,
+			zThreads = 8;
+		const matmul = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> srcA: array<${dtype}>;
+			@group(0) @binding(2) var<storage, read> srcB: array<${dtype}>;
+
+		 	@compute @workgroup_size(${xThreads}, ${yThreads}, ${zThreads})
+		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
+				let b = gid.x;
+				let i = gid.y;
+				let j = gid.z;
+				if(b < ${B} && i < ${M} && j < ${L}) {
+					let srcAOffset = ${wgslBaseIdx(srcA.shape, srcA.strides, "b", -3)};
+					let srcBOffset = ${wgslBaseIdx(srcB.shape, srcB.strides, "b", -3)};
+					let dstOffset = ${wgslBaseIdx(dst.shape, dst.strides, "b", -3)};
+
+					var summed: ${dtype} = 0;
+					for(var k: u32 = 0; k < ${innerDim}; k++) {
+						let srcAIdx = srcAOffset + i*${srcA.strides.at(-2)} + k*${srcA.strides.at(-1)};
+						let srcBIdx = srcBOffset + k*${srcB.strides.at(-2)} + j*${srcB.strides.at(-1)};
+						summed += srcA[srcAIdx]*srcB[srcBIdx];	
+					}
+
+					let dstIdx = dstOffset + i*${dst.strides.at(-2)} + j*${dst.strides.at(-1)};
+					dst[dstIdx] = summed;
+				}
+			}
+		`
+			)
+			.getFunction("main");
+
+		const workgroups = [numWorkgroups(B, xThreads), numWorkgroups(M, yThreads), numWorkgroups(L, zThreads)];
+		matmul(workgroups, dst.gpuBuffer, srcA.gpuBuffer, srcB.gpuBuffer);
+	}
+
+	bmm(other) {
+		const dstShape = [...this.shape.slice(0, -2), this.shape.at(-2), other.shape.at(-1)];
+		console.log(dstShape);
+		const dst = Tensor.empty(dstShape);
+		Tensor.bmm(dst, this, other);
+		return dst;
+	}
+
+	/**
+	 * @param {Tensor} dst destination (B, D, D)
+	 * @param {Tensor} s softmaxOutput (B, D)
+	 */
+	static _softmaxJacobianLastDim(dst, s) {
+		assert(dst.shape.at(-1) === dst.shape.at(-2) && dst.shape.at(-1) === s.shape.at(-1));
+		const B = length(dst.shape.slice(-2));
+		const D = dst.shape.at(-1);
+
+		const dtype = dst.dtype;
+		const xThreads = 4,
+			yThreads = 8,
+			zThreads = 8;
+		const softmaxJacobian = gpu
+			.SourceModule(
+				/*wgsl*/ `
+			@group(0) @binding(0) var<storage, read_write> dst: array<${dtype}>;
+			@group(0) @binding(1) var<storage, read> s: array<${dtype}>;
+
+		 	@compute @workgroup_size(${xThreads}, ${yThreads}, ${zThreads})
+		 	fn main(@builtin(global_invocation_id) gid : vec3u) {
+				let b = gid.x;
+				let i = gid.y;
+				let j = gid.z;
+
+				if(b < ${B} && i < ${D} && j < ${D}) {
+					let dstOffset = ${wgslBaseIdx(dst.shape, dst.strides, "b", -3)};
+					let sOffset = ${wgslBaseIdx(s.shape, s.strides, "b", -2)};
+
+					let siIdx = sOffset + i*${s.strides.at(-1)};
+					let sjIdx = sOffset + j*${s.strides.at(-1)};
+					let dijIdx = dstOffset + i*${dst.strides.at(-2)} + j*${dst.strides.at(-1)};
+
+					let si = s[siIdx];
+					let sj = s[sjIdx];
+					if(i!=j) {
+						dst[dijIdx] = -si*sj;
+					}
+					else {
+						dst[dijIdx] = si*(1-si);
+					}
+				}
+			}
+		`
+			)
+			.getFunction("main");
+
+		const workgroups = [numWorkgroups(B, xThreads), numWorkgroups(D, yThreads), numWorkgroups(D, zThreads)];
+		softmaxJacobian(workgroups, dst.gpuBuffer, s.gpuBuffer);
+	}
+
+	_softmaxJacobian() {
+		const D = this.shape.at(-1);
+		const dst = Tensor.empty([...this.shape.slice(0, -1), D, D]);
+		Tensor._softmaxJacobianLastDim(dst, this);
+		return dst;
+	}
+
+	// let dstOffset = ${wgslBaseIdx(dst.shape, dst.strides, "gid.x", -3)};
+	// let sOffset = ${wgslBaseIdx(s.shape, s.strides, "gid.x", -2)};
+
+	// for(var i: u32 = 0; i < ${dst.shape.at(-1)}; i++) {
+	// 	let si = sOffset + ${s.strides.at(-1)}*i;
+	// 	for(var j: u32 = 0; j < ${dst.shape.at(-2)}; j++) {
+	// 		let sj = sOffset + ${s.strides.at(-1)}*j;
+	// 		let dstIdx = dstOffset + ${dst.strides.at(-1)}*i + ${dst.strides.at(-2)}*j;
+	// 		if(dstIdx < ${LENGTH}) {
+	// 			if(i != j) {
+	// 				dst[dstIdx] = s[si]*(1-s[si]);
+	// 			} else {
+	// 				dst[dstIdx] = -s[si]*s[sj];
+	// 			}
+	// 		}
+	// 	}
+	// }
+
 	async print(minimized = true) {
 		this.assertNotFreed();
 
