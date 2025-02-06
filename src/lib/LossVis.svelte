@@ -1,5 +1,5 @@
 <script>
-	import { scaleLinear } from "d3-scale";
+	import { scaleLinear } from "d3";
 
 	export let height = 250;
 	export let width = 500;

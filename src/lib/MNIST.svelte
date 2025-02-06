@@ -3,6 +3,8 @@
 	import { Tensor } from "../../tensorscript";
 	import { Lazy, OptimSGD } from "../../lazy";
 	import LossVis from "./LossVis.svelte";
+	import MnistDigit from "./digit/MnistDigit.svelte";
+	import * as d3 from "d3";
 
 	let loadingData = false;
 	async function fetchMnist10k() {
@@ -63,9 +65,11 @@
 
 	const batchSize = 64;
 	const lr = 0.1;
-	const maxEpochs = 5;
+	const maxEpochs = 10;
 	let lossHistory = [];
 	let deviceInfo;
+	let trainingFinished = false;
+	let yhat, x;
 	onMount(async () => {
 		const adapter = await navigator.gpu.requestAdapter();
 		const device = await adapter.requestDevice();
@@ -73,8 +77,9 @@
 		Tensor.setDevice(device);
 
 		const [xCpu, yCpu] = await fetchMnist10k();
-		const x = Lazy.tensor(Tensor.fill(1, [batchSize, 28 * 28]));
-		const [yhat, params] = createClassifierMLP(x, [28 * 28, 128, 128], batchSize);
+		x = Lazy.tensor(Tensor.fill(1, [batchSize, 28 * 28]));
+		let params;
+		[yhat, params] = createClassifierMLP(x, [28 * 28, 256, 128], batchSize);
 		const y = Lazy.tensor(Tensor.fill(1, [batchSize, 10]));
 		const loss = lossCCE(yhat, y, batchSize);
 		const optim = new OptimSGD(params, lr);
@@ -101,7 +106,33 @@
 				}
 			}
 		}
+		trainingFinished = true;
 	});
+	let drawnDigit = new Float32Array(28 * 28).fill(0);
+	let updateCounter = 0;
+	let confs;
+	async function updateDraw(d, skip = 5) {
+		drawnDigit = d;
+		if (updateCounter % skip === 0) {
+			if (yhat && x) {
+				x.tensor.setGPUBuffer(drawnDigit);
+				yhat.forward();
+				confs = (await yhat.tensor.cpuBuffer()).slice(0, 10);
+			}
+		}
+		updateCounter++;
+	}
+	function _argmax(arr) {
+		let idx = 0;
+		let gmax = arr[idx];
+		for (let i = 0; i < arr.length; i++) {
+			if (arr[i] > gmax) {
+				gmax = arr[i];
+				idx = i;
+			}
+		}
+		return idx;
+	}
 </script>
 
 {#if loadingData}
@@ -110,9 +141,34 @@
 {#if deviceInfo}
 	<div>Running on {JSON.stringify(deviceInfo, null, 4)}</div>
 {/if}
+{#if !loadingData && !trainingFinished}
+	<div>Training MLP on MNIST 10k Images</div>
+{/if}
 <div>
 	<LossVis loss={lossHistory} />
 </div>
+
+{#if trainingFinished}
+	<div>
+		<button
+			on:click={() => {
+				confs = undefined;
+				drawnDigit = new Float32Array(28 * 28).fill(0);
+			}}>Clear</button
+		>
+	</div>
+	<div>
+		<MnistDigit data={drawnDigit} maxVal={1} enableDrawing onChange={async (d) => await updateDraw(d)} />
+	</div>
+	{#if confs}
+		<div>Predicted Digit: {_argmax(confs)}</div>
+		<div style="width: 300px;">
+			{#each confs as c, i}
+				<div style="width: {c * 300}px; height: 20px; background: {d3.schemeCategory10[i]};">{i}</div>
+			{/each}
+		</div>
+	{/if}
+{/if}
 
 <style>
 	/*  put stuff here */
