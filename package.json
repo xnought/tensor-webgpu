@@ -13,5 +13,8 @@
     "@webgpu/types": "^0.1.54",
     "svelte": "^5.19.6",
     "vite": "^6.1.0"
+  },
+  "dependencies": {
+    "d3-scale": "^4.0.2"
   }
 }

@@ -2,6 +2,7 @@
 	import { onMount } from "svelte";
 	import { Tensor } from "../../tensorscript";
 	import { Lazy, OptimSGD } from "../../lazy";
+	import LossVis from "./LossVis.svelte";
 
 	let loadingData = false;
 	async function fetchMnist10k() {
@@ -110,9 +111,7 @@
 	<div>Running on {JSON.stringify(deviceInfo, null, 4)}</div>
 {/if}
 <div>
-	{#each lossHistory as lh}
-		<div>Loss: {lh}</div>
-	{/each}
+	<LossVis loss={lossHistory} />
 </div>
 
 <style>
