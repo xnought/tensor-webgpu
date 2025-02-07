@@ -32,7 +32,7 @@ All computation done on the GPU!
   - [x] Load batches and convert to one-hot
   - [x] Overfit on one batch
   - [x] Train on subset of train
-  - [ ] Visualize training in browser and have interactive example
+  - [x] Visualize training in browser and have interactive example
 
 ## Getting Started
 
